@@ -1,1 +1,199 @@
+# ---------------------------------------------------------------------------------------------------------------
+# Importing all 2017 data
+# ---------------------------------------------------------------------------------------------------------------
 
+apr_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-04-02", end_date = "2017-04-08")
+apr_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-04-09", end_date = "2017-04-15")
+apr_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-04-16", end_date = "2017-04-22")
+apr_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-04-23", end_date = "2017-04-29")
+apr_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-04-30", end_date = "2017-04-30")
+
+may_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-05-01", end_date = "2017-05-07")
+may_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-05-08", end_date = "2017-05-14")
+may_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-05-15", end_date = "2017-05-21")
+may_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-05-22", end_date = "2017-05-28")
+may_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-05-29", end_date = "2017-05-31")
+
+jun_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-06-01", end_date = "2017-06-07")
+jun_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-06-08", end_date = "2017-06-14")
+jun_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-06-15", end_date = "2017-06-21")
+jun_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-06-22", end_date = "2017-06-28")
+jun_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-06-29", end_date = "2017-06-30")
+
+
+jul_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-07-01", end_date = "2017-07-07")
+jul_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-07-08", end_date = "2017-07-14")
+jul_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-07-15", end_date = "2017-07-21")
+jul_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-07-22", end_date = "2017-07-28")
+jul_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-07-29", end_date = "2017-07-31")
+
+
+aug_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-08-01", end_date = "2017-08-07")
+aug_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-08-08", end_date = "2017-08-14")
+aug_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-08-15", end_date = "2017-08-21")
+aug_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-08-22", end_date = "2017-08-28")
+aug_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-08-29", end_date = "2017-08-31")
+
+
+sep_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-09-01", end_date = "2017-09-07")
+sep_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-09-08", end_date = "2017-09-14")
+sep_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-09-15", end_date = "2017-09-21")
+sep_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-09-22", end_date = "2017-09-28")
+sep_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-09-29", end_date = "2017-09-30")
+
+
+oct_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-10-01", end_date = "2017-10-07")
+oct_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-10-08", end_date = "2017-10-14")
+oct_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-10-15", end_date = "2017-10-21")
+oct_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-10-22", end_date = "2017-10-28")
+oct_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-10-29", end_date = "2017-11-01")
+
+# ---------------------------------------------------------------------------------------------------------------
+# Importing all 2018 data
+# ---------------------------------------------------------------------------------------------------------------
+
+apr_data_2018_week1 <- scrape_statcast_savant_batter_all(start_date = "2018-03-29", end_date = "2018-04-04")
+apr_data_2018_week2 <- scrape_statcast_savant_batter_all(start_date = "2018-04-05", end_date = "2018-04-11")
+apr_data_2018_week3 <- scrape_statcast_savant_batter_all(start_date = "2018-04-12", end_date = "2018-04-18")
+apr_data_2018_week4 <- scrape_statcast_savant_batter_all(start_date = "2018-04-19", end_date = "2018-04-25")
+apr_data_2018_week4plus <- scrape_statcast_savant_batter_all(start_date = "2018-04-26", end_date = "2018-04-30")
+
+
+may_data_2018_week1 <- scrape_statcast_savant_batter_all(start_date = "2018-05-01", end_date = "2018-05-07")
+may_data_2018_week2 <- scrape_statcast_savant_batter_all(start_date = "2018-05-08", end_date = "2018-05-14")
+may_data_2018_week3 <- scrape_statcast_savant_batter_all(start_date = "2018-05-15", end_date = "2018-05-21")
+may_data_2018_week4 <- scrape_statcast_savant_batter_all(start_date = "2018-05-22", end_date = "2018-05-28")
+may_data_2018_week4plus <- scrape_statcast_savant_batter_all(start_date = "2018-05-29", end_date = "2018-05-31")
+
+jun_data_2018_week1 <- scrape_statcast_savant_batter_all(start_date = "2018-06-01", end_date = "2018-06-07")
+jun_data_2018_week2 <- scrape_statcast_savant_batter_all(start_date = "2018-06-08", end_date = "2018-06-14")
+jun_data_2018_week3 <- scrape_statcast_savant_batter_all(start_date = "2018-06-15", end_date = "2018-06-21")
+jun_data_2018_week4 <- scrape_statcast_savant_batter_all(start_date = "2018-06-22", end_date = "2018-06-28")
+jun_data_2018_week4plus <- scrape_statcast_savant_batter_all(start_date = "2018-06-29", end_date = "2018-06-30")
+
+
+jul_data_2018_week1 <- scrape_statcast_savant_batter_all(start_date = "2018-07-01", end_date = "2018-07-07")
+jul_data_2018_week2 <- scrape_statcast_savant_batter_all(start_date = "2018-07-08", end_date = "2018-07-14")
+jul_data_2018_week3 <- scrape_statcast_savant_batter_all(start_date = "2018-07-15", end_date = "2018-07-21")
+jul_data_2018_week4 <- scrape_statcast_savant_batter_all(start_date = "2018-07-22", end_date = "2018-07-28")
+jul_data_2018_week4plus <- scrape_statcast_savant_batter_all(start_date = "2018-07-29", end_date = "2018-07-31")
+
+
+aug_data_2018_week1 <- scrape_statcast_savant_batter_all(start_date = "2018-08-01", end_date = "2018-08-07")
+aug_data_2018_week2 <- scrape_statcast_savant_batter_all(start_date = "2018-08-08", end_date = "2018-08-14")
+aug_data_2018_week3 <- scrape_statcast_savant_batter_all(start_date = "2018-08-15", end_date = "2018-08-21")
+aug_data_2018_week4 <- scrape_statcast_savant_batter_all(start_date = "2018-08-22", end_date = "2018-08-28")
+aug_data_2018_week4plus <- scrape_statcast_savant_batter_all(start_date = "2018-08-29", end_date = "2018-08-31")
+
+
+sep_data_2018_week1 <- scrape_statcast_savant_batter_all(start_date = "2018-09-01", end_date = "2018-09-07")
+sep_data_2018_week2 <- scrape_statcast_savant_batter_all(start_date = "2018-09-08", end_date = "2018-09-14")
+sep_data_2018_week3 <- scrape_statcast_savant_batter_all(start_date = "2018-09-15", end_date = "2018-09-21")
+sep_data_2018_week4 <- scrape_statcast_savant_batter_all(start_date = "2018-09-22", end_date = "2018-09-28")
+sep_data_2018_week4plus <- scrape_statcast_savant_batter_all(start_date = "2018-09-29", end_date = "2018-09-30")
+
+oct_data_2018_week1 <- scrape_statcast_savant_batter_all(start_date = "2018-10-01", end_date = "2018-10-07")
+oct_data_2018_week2 <- scrape_statcast_savant_batter_all(start_date = "2018-10-08", end_date = "2018-10-14")
+oct_data_2018_week3 <- scrape_statcast_savant_batter_all(start_date = "2018-10-15", end_date = "2018-10-21")
+oct_data_2018_week4 <- scrape_statcast_savant_batter_all(start_date = "2018-10-22", end_date = "2018-10-28")
+oct_data_2018_week4plus <- scrape_statcast_savant_batter_all(start_date = "2018-10-29", end_date = "2018-10-31")
+
+# ---------------------------------------------------------------------------------------------------------------
+# Importing all 2019 data
+# ---------------------------------------------------------------------------------------------------------------
+
+apr_data_2019_week1 <- scrape_statcast_savant_batter_all(start_date = "2019-03-20", end_date = "2019-04-01")
+apr_data_2019_week2 <- scrape_statcast_savant_batter_all(start_date = "2019-04-02", end_date = "2019-04-08")
+apr_data_2019_week3 <- scrape_statcast_savant_batter_all(start_date = "2019-04-09", end_date = "2019-04-15")
+apr_data_2019_week4 <- scrape_statcast_savant_batter_all(start_date = "2019-04-16", end_date = "2019-04-22")
+apr_data_2019_week4plus <- scrape_statcast_savant_batter_all(start_date = "2019-04-23", end_date = "2019-04-30")
+
+
+may_data_2019_week1 <- scrape_statcast_savant_batter_all(start_date = "2019-05-01", end_date = "2019-05-07")
+may_data_2019_week2 <- scrape_statcast_savant_batter_all(start_date = "2019-05-08", end_date = "2019-05-14")
+may_data_2019_week3 <- scrape_statcast_savant_batter_all(start_date = "2019-05-15", end_date = "2019-05-21")
+may_data_2019_week4 <- scrape_statcast_savant_batter_all(start_date = "2019-05-22", end_date = "2019-05-28")
+may_data_2019_week4plus <- scrape_statcast_savant_batter_all(start_date = "2019-05-29", end_date = "2019-05-31")
+
+jun_data_2019_week1 <- scrape_statcast_savant_batter_all(start_date = "2019-06-01", end_date = "2019-06-07")
+jun_data_2019_week2 <- scrape_statcast_savant_batter_all(start_date = "2019-06-08", end_date = "2019-06-14")
+jun_data_2019_week3 <- scrape_statcast_savant_batter_all(start_date = "2019-06-15", end_date = "2019-06-21")
+jun_data_2019_week4 <- scrape_statcast_savant_batter_all(start_date = "2019-06-22", end_date = "2019-06-28")
+jun_data_2019_week4plus <- scrape_statcast_savant_batter_all(start_date = "2019-06-29", end_date = "2019-06-30")
+
+
+jul_data_2019_week1 <- scrape_statcast_savant_batter_all(start_date = "2019-07-01", end_date = "2019-07-07")
+jul_data_2019_week2 <- scrape_statcast_savant_batter_all(start_date = "2019-07-08", end_date = "2019-07-14")
+jul_data_2019_week3 <- scrape_statcast_savant_batter_all(start_date = "2019-07-15", end_date = "2019-07-21")
+jul_data_2019_week4 <- scrape_statcast_savant_batter_all(start_date = "2019-07-22", end_date = "2019-07-28")
+jul_data_2019_week4plus <- scrape_statcast_savant_batter_all(start_date = "2019-07-29", end_date = "2019-07-31")
+
+
+aug_data_2019_week1 <- scrape_statcast_savant_batter_all(start_date = "2019-08-01", end_date = "2019-08-07")
+aug_data_2019_week2 <- scrape_statcast_savant_batter_all(start_date = "2019-08-08", end_date = "2019-08-14")
+aug_data_2019_week3 <- scrape_statcast_savant_batter_all(start_date = "2019-08-15", end_date = "2019-08-21")
+aug_data_2019_week4 <- scrape_statcast_savant_batter_all(start_date = "2019-08-22", end_date = "2019-08-28")
+aug_data_2019_week4plus <- scrape_statcast_savant_batter_all(start_date = "2019-08-29", end_date = "2019-08-31")
+
+
+sep_data_2019_week1 <- scrape_statcast_savant_batter_all(start_date = "2019-09-01", end_date = "2019-09-07")
+sep_data_2019_week2 <- scrape_statcast_savant_batter_all(start_date = "2019-09-08", end_date = "2019-09-14")
+sep_data_2019_week3 <- scrape_statcast_savant_batter_all(start_date = "2019-09-15", end_date = "2019-09-21")
+sep_data_2019_week4 <- scrape_statcast_savant_batter_all(start_date = "2019-09-22", end_date = "2019-09-28")
+sep_data_2019_week4plus <- scrape_statcast_savant_batter_all(start_date = "2019-09-29", end_date = "2019-09-30")
+
+oct_data_2019_week1 <- scrape_statcast_savant_batter_all(start_date = "2019-10-01", end_date = "2019-10-07")
+oct_data_2019_week2 <- scrape_statcast_savant_batter_all(start_date = "2019-10-08", end_date = "2019-10-14")
+oct_data_2019_week3 <- scrape_statcast_savant_batter_all(start_date = "2019-10-15", end_date = "2019-10-21")
+oct_data_2019_week4 <- scrape_statcast_savant_batter_all(start_date = "2019-10-22", end_date = "2019-10-28")
+oct_data_2019_week4plus <- scrape_statcast_savant_batter_all(start_date = "2019-10-29", end_date = "2019-10-31")
+
+# ---------------------------------------------------------------------------------------------------------------
+# Importing all 2020 data
+# ---------------------------------------------------------------------------------------------------------------
+
+jul_data_2020 <- scrape_statcast_savant_batter_all(start_date = "2020-07-23", end_date = "2020-07-31")
+aug_data_2020_week1 <- scrape_statcast_savant_batter_all(start_date = "2020-08-01", end_date = "2020-08-07")
+aug_data_2020_week2 <- scrape_statcast_savant_batter_all(start_date = "2020-08-08", end_date = "2020-08-14")
+aug_data_2020_week3 <- scrape_statcast_savant_batter_all(start_date = "2020-08-15", end_date = "2020-08-21")
+aug_data_2020_week4 <- scrape_statcast_savant_batter_all(start_date = "2020-08-22", end_date = "2020-08-31")
+sep_data_2020_week1 <- scrape_statcast_savant_batter_all(start_date = "2020-09-01", end_date = "2020-09-07")
+sep_data_2020_week2 <- scrape_statcast_savant_batter_all(start_date = "2020-09-08", end_date = "2020-09-14")
+sep_data_2020_week3 <- scrape_statcast_savant_batter_all(start_date = "2020-09-15", end_date = "2020-09-21")
+sep_data_2020_week4 <- scrape_statcast_savant_batter_all(start_date = "2020-09-22", end_date = "2020-09-30")
+oct_data_2020 <- scrape_statcast_savant_batter_all(start_date = "2020-10-01", end_date = "2020-10-31")
+
+#aug_data_2020 <- rbind(aug_data_2020_week1, aug_data_2020_week2, aug_data_2020_week3, aug_data_2020_week4)
+#sep_data_2020 <- rbind(sep_data_2020_week1, sep_data_2020_week2, sep_data_2020_week3, sep_data_2020_week4)
+
+all_data_2017 <- rbind(apr_data_2017_week1, apr_data_2017_week2, apr_data_2017_week3, apr_data_2017_week4, apr_data_2017_week4plus,
+                       may_data_2017_week1, may_data_2017_week2, may_data_2017_week3, may_data_2017_week4, may_data_2017_week4plus,
+                       jun_data_2017_week1, jun_data_2017_week2, jun_data_2017_week3, jun_data_2017_week4, jun_data_2017_week4plus,
+                       jul_data_2017_week1, jul_data_2017_week2, jul_data_2017_week3, jul_data_2017_week4, jul_data_2017_week4plus,
+                       aug_data_2017_week1, aug_data_2017_week2, aug_data_2017_week3, aug_data_2017_week4, aug_data_2017_week4plus,
+                       sep_data_2017_week1, sep_data_2017_week2, sep_data_2017_week3, sep_data_2017_week4, sep_data_2017_week4plus,
+                       oct_data_2017_week1, oct_data_2017_week2, oct_data_2017_week3, oct_data_2017_week4, oct_data_2017_week4plus)
+
+all_data_2018 <- rbind(apr_data_2018_week1, apr_data_2018_week2, apr_data_2018_week3, apr_data_2018_week4, apr_data_2018_week4plus,
+                       may_data_2018_week1, may_data_2018_week2, may_data_2018_week3, may_data_2018_week4, may_data_2018_week4plus,
+                       jun_data_2018_week1, jun_data_2018_week2, jun_data_2018_week3, jun_data_2018_week4, jun_data_2018_week4plus,
+                       jul_data_2018_week1, jul_data_2018_week2, jul_data_2018_week3, jul_data_2018_week4, jul_data_2018_week4plus,
+                       aug_data_2018_week1, aug_data_2018_week2, aug_data_2018_week3, aug_data_2018_week4, aug_data_2018_week4plus,
+                       sep_data_2018_week1, sep_data_2018_week2, sep_data_2018_week3, sep_data_2018_week4, sep_data_2018_week4plus,
+                       oct_data_2018_week1, oct_data_2018_week2, oct_data_2018_week3, oct_data_2018_week4, oct_data_2018_week4plus)
+
+
+all_data_2019 <- rbind(apr_data_2019_week1, apr_data_2019_week2, apr_data_2019_week3, apr_data_2019_week4, apr_data_2019_week4plus,
+                       may_data_2019_week1, may_data_2019_week2, may_data_2019_week3, may_data_2019_week4, may_data_2019_week4plus,
+                       jun_data_2019_week1, jun_data_2019_week2, jun_data_2019_week3, jun_data_2019_week4, jun_data_2019_week4plus,
+                       jul_data_2019_week1, jul_data_2019_week2, jul_data_2019_week3, jul_data_2019_week4, jul_data_2019_week4plus,
+                       aug_data_2019_week1, aug_data_2019_week2, aug_data_2019_week3, aug_data_2019_week4, aug_data_2019_week4plus,
+                       sep_data_2019_week1, sep_data_2019_week2, sep_data_2019_week3, sep_data_2019_week4, sep_data_2019_week4plus,
+                       oct_data_2019_week1, oct_data_2019_week2, oct_data_2019_week3, oct_data_2019_week4, oct_data_2019_week4plus)
+
+all_data_2020 <- rbind(jul_data_2020,
+                       aug_data_2020_week1, aug_data_2020_week2, aug_data_2020_week3, aug_data_2020_week4,
+                       sep_data_2020_week1, sep_data_2020_week2, sep_data_2020_week3, sep_data_2020_week4,
+                       oct_data_2020)
+
+all_data_17_to_20 <- rbind(all_data_2017, all_data_2018, all_data_2019, all_data_2020)
