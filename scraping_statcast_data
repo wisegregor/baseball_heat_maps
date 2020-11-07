@@ -197,4 +197,14 @@ all_data_2020 <- rbind(jul_data_2020,
 
 all_data_17_to_20 <- rbind(all_data_2017, all_data_2018, all_data_2019, all_data_2020)
 
+# ---------------------------------------------------------------------------------------------------------------
+# Optional portion used to filter out non-null events only
+# ---------------------------------------------------------------------------------------------------------------
+
+#library(tidyverse)
+#all_data_17_to_20%>%
+#  filter(events != "null")->all_events_data_17_to_20
+
+#write.csv(all_events_data_17_to_20, "all_events_data_17_to_20.csv")
+
 # Credit to Bill Petti for creating the baseballr package
