@@ -1,3 +1,10 @@
+# Uncomment the following 2 lines to install the baseballr package
+# install.packages("remotes")
+# remotes::install_github("BillPetti/baseballr")
+
+library(baseballr)
+
+# As the scrape_statcast_savant_batter_all function can scrape a maximum of 40,000 rows of data, we have to scrape intervals < 40,000 rows at a time
 # ---------------------------------------------------------------------------------------------------------------
 # Importing all 2017 data
 # ---------------------------------------------------------------------------------------------------------------
@@ -197,3 +204,5 @@ all_data_2020 <- rbind(jul_data_2020,
                        oct_data_2020)
 
 all_data_17_to_20 <- rbind(all_data_2017, all_data_2018, all_data_2019, all_data_2020)
+
+# Credit to Bill Petti for creating the baseballr package
