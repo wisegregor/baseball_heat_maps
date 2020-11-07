@@ -158,6 +158,10 @@ sep_data_2020_week3 <- scrape_statcast_savant_batter_all(start_date = "2020-09-1
 sep_data_2020_week4 <- scrape_statcast_savant_batter_all(start_date = "2020-09-22", end_date = "2020-09-30")
 oct_data_2020 <- scrape_statcast_savant_batter_all(start_date = "2020-10-01", end_date = "2020-10-31")
 
+# ---------------------------------------------------------------------------------------------------------------
+# Combining data by year
+# ---------------------------------------------------------------------------------------------------------------
+
 all_data_2017 <- rbind(apr_data_2017_week1, apr_data_2017_week2, apr_data_2017_week3, apr_data_2017_week4, apr_data_2017_week4plus,
                        may_data_2017_week1, may_data_2017_week2, may_data_2017_week3, may_data_2017_week4, may_data_2017_week4plus,
                        jun_data_2017_week1, jun_data_2017_week2, jun_data_2017_week3, jun_data_2017_week4, jun_data_2017_week4plus,
@@ -186,6 +190,10 @@ all_data_2020 <- rbind(jul_data_2020,
                        aug_data_2020_week1, aug_data_2020_week2, aug_data_2020_week3, aug_data_2020_week4,
                        sep_data_2020_week1, sep_data_2020_week2, sep_data_2020_week3, sep_data_2020_week4,
                        oct_data_2020)
+                       
+# ---------------------------------------------------------------------------------------------------------------
+# Combining all data 2017-2020
+# ---------------------------------------------------------------------------------------------------------------
 
 all_data_17_to_20 <- rbind(all_data_2017, all_data_2018, all_data_2019, all_data_2020)
 
