@@ -1,4 +1,4 @@
-# Uncomment the following 2 lines to install the baseballr package
+# If you do not have the baseballr package already installed, uncomment the following two lines for installation
 # install.packages("remotes")
 # remotes::install_github("BillPetti/baseballr")
 
