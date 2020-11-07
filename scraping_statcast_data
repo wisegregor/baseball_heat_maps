@@ -203,8 +203,9 @@ all_data_17_to_20 <- rbind(all_data_2017, all_data_2018, all_data_2019, all_data
 
 #library(tidyverse)
 #all_data_17_to_20%>%
-#  filter(events != "null")->all_events_data_17_to_20
+#  filter(events != "null")%>%
+#   select(pitch_type, game_date, player_name, batter, pitcher, events, game_type, stand, p_throws, game_year, plate_x, plate_z)->relevant_all_events_data_17_to_20
 
-#write.csv(all_events_data_17_to_20, "all_events_data_17_to_20.csv")
+#write.csv(relevant_all_events_data_17_to_20, "relevant_all_events_data_17_to_20.csv")
 
 # Credit to Bill Petti for creating the baseballr package
