@@ -1,5 +1,5 @@
 ---
-title: "grape"
+title: "Adjusting Strikeout and Walk Percentages"
 author: "Greg Ngim"
 date: "11/11/2020"
 output: html_document
