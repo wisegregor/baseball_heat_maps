@@ -1,0 +1,770 @@
+---
+title: "grape"
+author: "Greg Ngim"
+date: "11/11/2020"
+output: html_document
+---
+
+```{r}
+library(readr) # allows us to use read_csv() function
+library(tidyverse) # allows us to use dplyr and pipe function (%>%)
+library(baseballr) # allows us to scrape data directly from baseballsavant.com
+library(ggplot2) # allows us to plot scatter plots
+library(plotly) # allows us to interact with scatter plots
+```
+
+## Overview
+
+So in this project, I was tasked with creating a Quality of Competition model/metric which adjusts hitter Strikeout percentage and Walk percentage according to the caliber of pitchers they faced in a given season.
+
+My process will be to first gather data from baseball savant. I'll use Bill Petti's baseballr package to scrape Statcast data from the past 4 seasons (2017-2020). I'll use that data to create expected strikeout and walk rates for hitters as well as expected strikeout and walk rates for pitchers.
+
+Using a variation of Bill James's log5 equation, I'm going to simulate each batter-to-pitcher matchup based on each hitter's strikeout rate against his opponent's strikeout rate (the pitcher). I'll do the same for walk rates. Lastly, I'll take the average strikeout rate and walk rate for each hitter and that will be our final adjusted Strikeout percentage and Walk percentage according to the caliber of pitchers they faced.
+
+I'm building xK% and xBB% models because they are proven to be more predictive year after year as opposed to pure K% and BB%. I'll show graphics displaying year to year correlations between K% and xK% and BB% and xBB%.
+
+## Reading in Data
+
+```{r cars}
+qual_of_comp_data <- read_csv("qual_of_comp_data.csv")
+head(qual_of_comp_data)
+```
+
+## Data Cleaning
+
+
+
+Since we need plate appearances, we'll first read in statcast data that was scraped from baseball savant and join PA's to batter_strikeouts dataframe to calculate strikeout percentage
+
+```{r}
+statcast_all_batters <- read_csv("statcast_all_batters.csv")
+
+statcast_all_batters%>%
+  mutate(player_name = paste(first_name, last_name, sep = " "))%>%
+  rename(game_year = year, batter = player_id)%>%
+  select(player_name, game_year, batter, pa, primary_position)->statcast_join
+```
+
+
+We want to filter out all pitchers that hit from our data in order not to skew our results.
+
+```{r}
+qual_of_comp_hitters_only <- left_join(qual_of_comp_data, statcast_join, by = c("player_name", "batter", "game_year"))%>%
+  mutate(primary_position = ifelse(is.na(primary_position), 1, primary_position))%>%
+  filter(primary_position != 1)
+```
+
+```{r pressure, echo=FALSE}
+qual_of_comp_hitters_only%>%
+  select(player_name, batter, game_year, game_type, events)%>%
+  filter(game_type == "R" & events == "strikeout")%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(total_strikeouts = n)->batter_strikeouts
+```
+
+
+```{r}
+batter_strikeout_pct_join <- left_join(batter_strikeouts, statcast_join, c("player_name", "batter", "game_year"))%>%
+  mutate(batter_strikeout_pct = total_strikeouts/pa)
+
+```
+
+
+
+```{r}
+qual_of_comp_hitters_only%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(player_name, batter, game_year, game_type, in_zone)%>%
+  filter(game_type == "R" & in_zone == 1)%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_pitches_in_zone = n)->batter_pitches_in_zone
+
+qual_of_comp_hitters_only%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(player_name, batter, game_year, game_type, in_zone, description)%>%
+  filter((game_type == "R" & in_zone == 1 & description == "foul") |
+           (game_type == "R" & in_zone == 1 & description == "foul_tip") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_no_out") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_score") |
+           (game_type == "R" & in_zone == 1 & description == "swinging_strike") |
+           (game_type == "R" & in_zone == 1 & description == "swinging_strike_blocked"))%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_pitches_in_zone_swung = n)->batter_pitches_in_zone_swung
+```
+
+```{r}
+# Here, we'll join our total pitches seen in zone dataframe and total pitches sen in zone and swung dataframes to create our zone swing percentage df
+zone_swing_pct_join <- left_join(batter_pitches_in_zone, batter_pitches_in_zone_swung, by = c("player_name", "batter","game_year"))%>%
+  mutate(zone_swing_pct = batter_pitches_in_zone_swung/batter_pitches_in_zone)
+
+```
+
+```{r}
+# ALL PITCHES OUT OF ZONE
+qual_of_comp_hitters_only%>%
+  mutate(out_of_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 0, 1))%>%
+  select(player_name, batter, game_year, game_type, out_of_zone)%>%
+  filter(game_type == "R" & out_of_zone == 1)%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_pitches_out_of_zone = n)->batter_pitches_out_of_zone
+
+# ALL PITCHES OUT OF AND CONTACT
+qual_of_comp_hitters_only%>%
+  mutate(out_of_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 0, 1))%>%
+  select(player_name, batter, game_year, game_type, out_of_zone, description)%>%
+  filter((game_type == "R" & out_of_zone == 1 & description == "foul") |
+           (game_type == "R" & out_of_zone == 1 & description == "foul_tip") |
+           (game_type == "R" & out_of_zone == 1 & description == "hit_into_play") |
+           (game_type == "R" & out_of_zone == 1 & description == "hit_into_play_no_out") |
+           (game_type == "R" & out_of_zone == 1 & description == "hit_into_play_score"))%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_pitches_out_of_zone_contact = n)->batter_pitches_out_of_zone_contact
+
+out_of_zone_miss_join <- left_join(batter_pitches_out_of_zone, batter_pitches_out_of_zone_contact, by = c("player_name", "batter", "game_year"))%>%
+  mutate(out_of_zone_miss_pct = 1-(batter_pitches_out_of_zone_contact/batter_pitches_out_of_zone))
+```
+
+```{r}
+qual_of_comp_hitters_only%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(player_name, batter, game_year, game_type, in_zone, description)%>%
+  filter((game_type == "R" & in_zone == 1 & description == "foul") |
+           (game_type == "R" & in_zone == 1 & description == "foul_tip") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_no_out") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_score"))%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_pitches_in_zone_contact = n)->batter_pitches_in_zone_contact
+
+in_zone_contact_join <- left_join(batter_pitches_in_zone_swung, batter_pitches_in_zone_contact, by = c("player_name", "batter", "game_year"))%>%
+  mutate(in_zone_contact_pct = batter_pitches_in_zone_contact/batter_pitches_in_zone_swung)
+```
+
+```{r}
+qual_of_comp_hitters_only%>%
+  select(player_name, batter, game_year, game_type)%>%
+  filter(game_type == "R")%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_pitches_seen = n)->batter_pitches_seen
+
+non_zone_pct_join <- left_join(batter_pitches_seen, batter_pitches_in_zone, by = c("player_name", 'batter', "game_year"))%>%
+  mutate(non_zone_pct = 1-(batter_pitches_in_zone/batter_pitches_seen))
+```
+
+```{r}
+qual_of_comp_hitters_only%>%
+  select(player_name, batter, game_year, game_type, pitch_number)%>%
+  filter(game_type == "R" & pitch_number == 1)%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_first_pitches = n)->batter_first_pitches
+
+qual_of_comp_hitters_only%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(player_name, batter, game_year, game_type, pitch_number, in_zone)%>%
+  filter(game_type == "R" & pitch_number == 1 & in_zone == 1)%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_first_pitch_strikes = n)->batter_first_pitch_strikes
+
+first_pitch_strike_join <- left_join(batter_first_pitches, batter_first_pitch_strikes, by = c("player_name", 'batter', "game_year"))%>%
+  mutate(first_pitch_strike_pct = batter_first_pitch_strikes/batter_first_pitches)
+```
+
+```{r}
+# This is the big join that combines all of the necessary variables together
+batter_strikeouts_big_join <- left_join(batter_strikeout_pct_join, zone_swing_pct_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(out_of_zone_miss_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(in_zone_contact_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(non_zone_pct_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(first_pitch_strike_join, by = c("player_name", "batter", "game_year"))
+
+batter_strikeouts_big_join%>%
+  select(player_name, batter, game_year, pa, primary_position, batter_strikeout_pct, zone_swing_pct, out_of_zone_miss_pct, in_zone_contact_pct, non_zone_pct,
+         first_pitch_strike_pct)%>%
+  filter(primary_position != 1)->test_data1
+
+batter_strikeouts_big_join%>%
+  select(player_name, batter, game_year, pa, primary_position, batter_strikeout_pct, zone_swing_pct, out_of_zone_miss_pct, in_zone_contact_pct, non_zone_pct,
+         first_pitch_strike_pct)%>%
+  filter(primary_position != 1 & pa >= 375)->model_data1
+
+batter_strikeout_model1 <- lm(batter_strikeout_pct ~ zone_swing_pct + out_of_zone_miss_pct + in_zone_contact_pct + non_zone_pct, data = model_data1) # first_pitch_strike_pct
+
+sm1 <- summary(batter_strikeout_model1)
+sm1
+
+mse1 <- function(sm1)
+  mean(sm1$residuals^2)
+
+mse1(sm1)
+
+# PA = 400; Rsquared = 0.8476; RMSE = 0.0005176732
+# PA = 395; Rsquared = 0.8485; RMSE = 0.0005145805
+# Based on correlation tests; I'm going with pa >= 375 as the break point because we maximize Rsquared and correlation while maintaining a low RMSE
+# PA = 375; Rsquared = 0.8496; RMSE = 0.0005222842
+# PA = 350; Rsquared = 0.8435; RMSE = 0.0005363987
+# PA = 300; Rsquared = 0.8436; RMSE = 0.0005477175
+# PA = 200; Rsquared = 0.8391; RMSE = 0.0006086828
+# PA = 100; Rsquared = 0.8307; RMSE = 0.0007046955
+
+# Lowest mean squared error for model1 = 0.0005145805
+
+est_batter_strikeout_rates <- predict(batter_strikeout_model1, test_data1[6:11])
+test_data1$est_batter_strikeout_rates <- est_batter_strikeout_rates
+
+test_data1%>%
+  filter(pa >= 375)->plot_data1
+
+p1 <- ggplot(plot_data1, aes(x=est_batter_strikeout_rates, y=batter_strikeout_pct)) +
+  xlab("Estimated Strikeout Rates") +
+  ylab("Real Strikeout Rates") +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Linear Regression Model: Real vs Estimated Strikout Rates (min PA = 375)")
+
+ggplotly(p1)
+
+# PA >= 400; Correlation = 0.9206631
+# PA >= 395; Correlation = 0.9211277;
+# PA >= 380; Correlation = 0.9211964;
+# Found the break point at PA >= 375
+# PA >= 375; Correlation = 0.921735;
+# PA >= 370; Correlation = 0.9207829;
+# PA >= 350; Correlation = 0.9173803;
+# PA >= 300; Correlation = 0.9182109;
+# PA >= 200; Correlation = 0.9148601; 
+# PA >= 50; Correlation = 0.9010168;
+# PA >= 1; Correlation = 0.8672581 
+cor.test(plot_data1$batter_strikeout_pct, plot_data1$est_batter_strikeout_rates)
+cor.test(test_data1$batter_strikeout_pct, test_data1$est_batter_strikeout_rates)
+```
+
+## Batter xBB% Model
+
+```{r}
+# Batter Walk Model
+qual_of_comp_hitters_only%>%
+  mutate(out_of_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 0, 1))%>%
+  select(player_name, batter, game_year, game_type, out_of_zone, description)%>%
+  filter((game_type == "R" & out_of_zone == 1 & description == "foul") |
+           (game_type == "R" & out_of_zone == 1 & description == "foul_tip") |
+           (game_type == "R" & out_of_zone == 1 & description == "hit_into_play") |
+           (game_type == "R" & out_of_zone == 1 & description == "hit_into_play_no_out") |
+           (game_type == "R" & out_of_zone == 1 & description == "hit_into_play_score") |
+           (game_type == "R" & out_of_zone == 1 & description == "swinging_strike") |
+           (game_type == "R" & out_of_zone == 1 & description == "swinging_strike_blocked"))%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_out_of_zone_swung = n)->batter_out_of_zone_swung
+
+# Here, we'll join our total pitches seen not in zone dataframe and total pitches seen not in zone and swung dataframes to create our non zone swing percentage 
+out_of_zone_swing_pct_join <- left_join(batter_pitches_out_of_zone, batter_out_of_zone_swung, by = c("player_name", "batter","game_year"))%>%
+  mutate(out_of_zone_swing_pct = batter_out_of_zone_swung/batter_pitches_out_of_zone)
+```
+
+```{r}
+qual_of_comp_hitters_only%>%
+  select(player_name, batter, game_year, game_type, events)%>%
+  filter(game_type == "R" & events == "walk")%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_walks = n)->batter_walks
+
+batter_walk_pct_join <- left_join(batter_walks, statcast_join, c("player_name", "game_year", "batter"))%>%
+  mutate(batter_walk_pct = batter_walks/pa)
+
+batter_zone_pct_join <- left_join(batter_pitches_seen, batter_pitches_in_zone, by = c("player_name", "game_year", "batter"))%>%
+  mutate(batter_zone_pct = batter_pitches_in_zone/batter_pitches_seen)
+```
+
+Even though I referenced this link https://saberscience.sport.blog/2020/07/13/modeling-walk-rate-with-plate-discipline-part-1-hitters/ my linear regression produced a higher R-squared and lower RMSE.
+
+```{r}
+batter_walks_big_join <- left_join(batter_walk_pct_join, out_of_zone_swing_pct_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(in_zone_contact_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(non_zone_pct_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(first_pitch_strike_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(batter_zone_pct_join, by = c("player_name", "batter", "game_year"))
+
+batter_walks_big_join%>%
+  select(player_name, batter, game_year, pa, primary_position, batter_walk_pct, out_of_zone_swing_pct, in_zone_contact_pct, batter_zone_pct,
+         first_pitch_strike_pct)%>%
+  filter(primary_position != 1)->batter_walk_test_data1
+
+batter_walks_big_join%>%
+  select(player_name, batter, game_year, pa, primary_position, batter_walk_pct, out_of_zone_swing_pct, in_zone_contact_pct, batter_zone_pct,
+         first_pitch_strike_pct)%>%
+  filter(primary_position != 1 & pa >= 375)->batter_walk_model_data1
+
+batter_walk_model1 <- lm(batter_walk_pct ~ out_of_zone_swing_pct + batter_zone_pct + first_pitch_strike_pct, data = batter_walk_model_data1) #in_zone_contact_pct batter_zone_pct
+
+sm2 <- summary(batter_walk_model1)
+sm2
+
+mse2 <- function(sm2)
+  mean(sm2$residuals^2)
+
+mse2(sm2)
+
+# MODEL WITH IN ZONE CONTACT; RSQUARED = 0.8257; RMSE = 0.0001584749
+# MODEL WITH ZONE PERCENTAGE; RSQUARED = 0.8841; RMSE = 0.0001053903
+
+est_batter_walk_rates <- predict(batter_walk_model1, batter_walk_test_data1[6:10])
+batter_walk_test_data1$est_batter_walk_rates <- est_batter_walk_rates
+
+batter_walk_test_data1%>%
+  filter(pa >= 375)->batter_walk_plot_data1
+
+p2 <- ggplot(batter_walk_plot_data1, aes(x=est_batter_walk_rates, y=batter_walk_pct)) +
+  xlab("Estimated Walk Rates") +
+  ylab("Real Walk Rates") +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Linear Regression Model: Real vs Estimated Walk Rates (min PA = 375)")
+
+ggplotly(p2)
+
+# PA >= 380; Correlation = 0.940187;
+# Found the break point at PA >= 375
+# PA >= 375; Correlation = 0.9402657;
+# PA >= 350; Correlation = 0.9387499;
+# PA >= 300; Correlation = 0.935122;
+# PA >= 200; Correlation = 0.9261552; 
+# PA >= 50; Correlation = 0.8925276;
+# PA >= 1; Correlation = 0.8547234  
+cor.test(batter_walk_plot_data1$batter_walk_pct, batter_walk_plot_data1$est_batter_walk_rates)
+cor.test(batter_walk_test_data1$batter_walk_pct, batter_walk_test_data1$est_batter_walk_rates)
+```
+
+```{r}
+# Scraping in baseball savant data from 2017 to get Pitcher Names
+statcast_scraper_2017_pitchers <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 1, player_type = "pitcher")%>%
+  mutate(primary_position = 1)%>%
+  mutate(pitcher_name = paste(first_name, last_name, sep = " "))
+
+statcast_scraper_2018_pitchers <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2018, min_pa = 1, position = 1, player_type = "pitcher")%>%
+  mutate(primary_position = 1)%>%
+  mutate(pitcher_name = paste(first_name, last_name, sep = " "))
+
+statcast_scraper_2019_pitchers <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2019, min_pa = 1, position = 1, player_type = "pitcher")%>%
+  mutate(primary_position = 1)%>%
+  mutate(pitcher_name = paste(first_name, last_name, sep = " "))
+
+statcast_scraper_2020_pitchers <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2020, min_pa = 1, position = 1, player_type = "pitcher")%>%
+  mutate(primary_position = 1)%>%
+  mutate(pitcher_name = paste(first_name, last_name, sep = " "))
+
+statcast_all_pitchers <- rbind(statcast_scraper_2017_pitchers, statcast_scraper_2018_pitchers, statcast_scraper_2019_pitchers, statcast_scraper_2020_pitchers)%>%
+  rename(game_year = year, pitcher = player_id)%>%
+  select(pitcher_name, pitcher, pa, game_year)
+
+statcast_all_pitchers
+```
+
+
+```{r}
+# new best ish model
+# xK% = -0.8432 + (Str% * 0.2916) + (L/Str * 1.2689) + (S/Str * 1.5334) + (F/Str * 0.9672)
+#Str% — Strike Percentage | Strikes / Total Pitches
+#L/Str — Looking Strike Percentage | Strikes Looking / Total Strikes
+#S/Str — Swinging Strike Percentage | Strikes Swinging Without Contact / Total Strikes
+#F/Str — Foul Ball Strike Percentage | Pitches Fouled Off / Total Strikes
+
+
+# So I think the big thing/main point is proving that the xK and xBB models
+# have stronger correlation year to year and that's why I'm adjusting
+# strikeout and walk rates before simulating
+# so a double expected adjustment
+
+# ok lets get to work
+# Str% strike percentage
+# what if i do, expected strikes / total pitches
+
+qual_of_comp_data_pitchers <- read_csv("qual_of_comp_data_pitchers.csv")
+```
+
+```{r}
+
+# Join in pitcher names
+qual_of_comp_data_all_pitchers <- left_join(qual_of_comp_data_pitchers, statcast_all_pitchers, by = c("pitcher", "game_year"))
+
+
+# Here we get expected strike zone percentage
+qual_of_comp_data_all_pitchers%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(pitcher_name, pitcher, game_year, game_type, in_zone)%>%
+  filter(game_type == "R" & in_zone == 1)%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_pitches_in_zone = n)->pitcher_pitches_in_zone
+
+
+
+qual_of_comp_data_all_pitchers%>%
+  select(pitcher_name, pitcher, game_year, game_type, pitch_number)%>%
+  filter(game_type == "R" & pitch_number != "null")%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_total_pitches_thrown = n)->pitcher_total_pitches_thrown
+
+
+pitcher_expected_strike_percentage_join <- left_join(pitcher_pitches_in_zone, pitcher_total_pitches_thrown, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_expected_strike_percentage = pitcher_pitches_in_zone/pitcher_total_pitches_thrown)
+```
+
+```{r}
+qual_of_comp_data_all_pitchers%>%
+  select(pitcher_name, pitcher, game_year, game_type, events)%>%
+  filter((game_type == "R" & events == "strikeout") | (game_type == "R" & events == "strikeout_double_play"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitchers_total_strikeouts = n)->pitchers_total_strikeouts
+
+
+qual_of_comp_data_all_pitchers%>%
+  select(pitcher_name, pitcher, game_year, pa)->pitcher_tbf
+
+pitcher_tbf <- unique(pitcher_tbf)
+
+
+
+pitcher_k_pct_join <- left_join(pitchers_total_strikeouts, pitcher_tbf, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_k_pct = pitchers_total_strikeouts/pa)
+```
+
+```{r}
+# Now we need to get looking strike percentage
+# this AND batter did NOT swing
+# so what are swings
+
+qual_of_comp_data_all_pitchers%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
+  filter((game_type == "R" & in_zone == 1 & description == "ball") | 
+           (game_type == "R" & in_zone == 1 & description == "called_strike") |
+           (game_type == "R" & in_zone == 1 & description == "hit_by_pitch") |
+           (game_type == "R" & in_zone == 1 & description == "pitchout"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_pitches_in_zone_looking = n)->pitcher_pitches_in_zone_looking
+
+
+
+pitcher_in_zone_looking_strike_pct_join <- left_join(pitcher_pitches_in_zone_looking, pitcher_pitches_in_zone, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_in_zone_looking_strike_pct = pitcher_pitches_in_zone_looking/pitcher_pitches_in_zone)
+```
+
+
+```{r}
+# Need in zone and swings
+qual_of_comp_data_all_pitchers%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(pitcher_name, pitcher, game_year, game_type, description, in_zone)%>%
+  filter((game_type == "R" & in_zone == 1 & description == "foul") |
+           (game_type == "R" & in_zone == 1 & description == "foul_tip") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_no_out") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_score") |
+           (game_type == "R" & in_zone == 1 & description == "swinging_strike") |
+           (game_type == "R" & in_zone == 1 & description == "swinging_strike_blocked"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_pitches_in_zone_and_swung = n)->pitcher_pitches_in_zone_and_swung
+
+# now we need expected strike zones and miss
+qual_of_comp_data_all_pitchers%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
+  filter((game_type == "R" & in_zone == 1 & description == "swinging_strike") | 
+         (game_type == "R" & in_zone == 1 & description == "swinging_strike_blocked"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_pitches_in_zone_whiffs = n)->pitcher_pitches_in_zone_whiffs
+
+
+
+pitcher_in_zone_whiffs_pct_join <- left_join(pitcher_pitches_in_zone_whiffs, pitcher_pitches_in_zone_and_swung, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_in_zone_whiffs_pct = pitcher_pitches_in_zone_whiffs/pitcher_pitches_in_zone_and_swung)
+```
+
+```{r}
+# lastly we need foul balls on pitches in expected strike zone
+
+#qual_of_comp_foul_ball_data <- left_join(foul_ball_data, statcast_all_pitchers, by = c("pitcher", "game_year"))
+
+
+qual_of_comp_data_all_pitchers%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
+  filter((game_type == "R" & in_zone == 1 & description == "foul") | 
+         (game_type == "R" & in_zone == 1 & description == "foul_tip") |
+         (game_type == "R" & in_zone == 1 & description == "foul_bunt"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_pitches_in_zone_fouls = n)->pitcher_pitches_in_zone_fouls
+
+
+
+pitcher_in_zone_foul_pct_join <- left_join(pitcher_pitches_in_zone_fouls, pitcher_pitches_in_zone_and_swung, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_in_zone_foul_pct = pitcher_pitches_in_zone_fouls/pitcher_pitches_in_zone_and_swung)
+```
+
+```{r}
+
+pitcher_expected_strike_percentage_join
+pitcher_in_zone_foul_pct_join
+pitcher_in_zone_whiffs_pct_join
+pitcher_in_zone_looking_strike_pct_join
+pitcher_k_pct_join
+
+pitchers_expected_strikeout_big_join <- left_join(pitcher_k_pct_join, pitcher_expected_strike_percentage_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  left_join(pitcher_in_zone_looking_strike_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  left_join(pitcher_in_zone_whiffs_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  left_join(pitcher_in_zone_foul_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  select(pitcher_name, pitcher, game_year, pa, pitcher_k_pct, pitcher_expected_strike_percentage, pitcher_in_zone_looking_strike_pct, pitcher_in_zone_whiffs_pct,
+         pitcher_in_zone_foul_pct)
+
+pitchers_xSO_test_data <- pitchers_expected_strikeout_big_join
+
+pitchers_xSO_model_data <- pitchers_expected_strikeout_big_join%>%
+  filter(pa >= 200)
+  
+
+
+pitchers_xSO_model1 <- lm(pitcher_k_pct ~ ., data = pitchers_xSO_model_data[5:9])
+
+sm3 <- summary(pitchers_xSO_model1)
+
+mse3 <- function(sm3)
+  mean(sm3$residuals^2)
+
+mse3(sm3)
+
+
+pitchers_xSO_rates <- predict(pitchers_xSO_model1, pitchers_xSO_test_data[5:9])
+#test_data$estimated_strikeout_rates <- data.frame(estimated_strikeout_rates)
+
+pitchers_xSO_test_data$pitchers_xSO_rates <- pitchers_xSO_rates
+
+
+
+
+pitchers_xSO_test_data%>%
+  filter(pa >= 200)->pitchers_strikeout_plot_data1
+
+p3 <- ggplot(pitchers_xSO_test_data, aes(x=pitchers_xSO_rates, y=pitcher_k_pct)) +
+  xlab("Estimated Strikeout Rates") +
+  ylab("Real Strikeout Rates") +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Linear Regression Model: Real vs Estimated Strikeout Rates (min PA = 200)")
+
+ggplotly(p3)
+
+# PA >= 380; Correlation = 0.940187;
+# Found the break point at PA >= 375
+# PA >= 375; Correlation = 0.9402657;
+# PA >= 350; Correlation = 0.9387499;
+# PA >= 300; Correlation = 0.935122;
+# PA >= 200; Correlation = 0.9261552; 
+# PA >= 50; Correlation = 0.8925276;
+# PA >= 1; Correlation = 0.8547234  
+cor.test(pitchers_strikeout_plot_data1$pitcher_k_pct, pitchers_strikeout_plot_data1$pitchers_xSO_rates)
+cor.test(pitchers_xSO_test_data$pitcher_k_pct, pitchers_xSO_test_data$pitchers_xSO_rates)
+
+```
+
+
+
+## Pitcher Expected Walk Model
+
+
+
+```{r}
+# Pitcher Expected BB% equation
+# From Mike Podhorzer
+# xBB% = 0.6583 + (-0.7838 * Str%) + (-0.2685 * I/Str)
+# where Str% is strike percentage
+# lets do expected strikes thrown/all pitches
+# I/Str = balls in play per strike
+
+# Newer BB% equation
+# xBB% = 0.7598 + (-0.7300 * Str%) + (-0.5729 * I/Str) + (-0.2341 * K%)
+# if we replace Str with expected strike percentage
+# balls in play per expected strike
+# and expected strikeout percentage, we'll have an expected walk rate
+
+# i think all we need to calculate is balls in play per expected strike
+
+
+qual_of_comp_data_all_pitchers%>%
+  select(pitcher_name, pitcher, game_year, game_type, events)%>%
+  filter((game_type == "R" & events == "walk"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_total_walks = n)->pitcher_total_walks
+
+
+pitcher_walk_pct_join <- left_join(pitcher_total_walks, statcast_all_pitchers, c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_BB_pct = pitcher_total_walks/pa)
+
+
+qual_of_comp_data_all_pitchers%>%
+  select(pitcher_name, pitcher, game_year, game_type, description)%>%
+  filter((game_type == "R" & description == "hit_into_play") |
+         (game_type == "R" & description == "foul") |
+         (game_type == "R" & description == "swinging_strike_blocked") |
+         (game_type == "R" & description == "swinging_strike") |
+         (game_type == "R" & description == "foul_tip") |
+         (game_type == "R" & description == "called_strike") |
+         (game_type == "R" & description == "hit_into_play_score") |
+         (game_type == "R" & description == "hit_into_play_no_out") |
+         (game_type == "R" & description == "foul_bunt") |
+         (game_type == "R" & description == "missed_bunt") |
+         (game_type == "R" & description == "swinging_pitchout") |
+         (game_type == "R" & description == "foul_pitchout") |
+         (game_type == "R" & description == "bunt_foul_tip"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_true_strikes_thrown = n)->pitcher_true_strikes_thrown
+           
+pitcher_true_strike_pct_join <- left_join(pitcher_total_pitches_thrown, pitcher_true_strikes_thrown, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_true_strike_pct = pitcher_true_strikes_thrown/pitcher_total_pitches_thrown)
+
+
+qual_of_comp_data_all_pitchers%>%
+  mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
+  select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
+  filter((game_type == "R" & in_zone == 1 & description == "hit_into_play") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_no_out") |
+           (game_type == "R" & in_zone == 1 & description == "hit_into_play_score"))%>%
+  group_by(pitcher_name, pitcher, game_year)%>%
+  tally()%>%
+  rename(pitcher_BIP_expected_strike = n)->pitcher_BIP_expected_strike
+
+pitcher_BIP_expected_strike_join <- left_join(pitcher_BIP_expected_strike, pitcher_pitches_in_zone, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(pitcher_BIP_expected_strike_pct = pitcher_BIP_expected_strike/pitcher_pitches_in_zone)
+
+
+pitcher_strikeout_big_join <- left_join(pitcher_walk_pct_join, pitcher_true_strike_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  left_join(pitcher_BIP_expected_strike_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  left_join(pitcher_k_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  select(pitcher_name, pitcher, game_year, pa.x, pitcher_BB_pct, pitcher_true_strike_pct, pitcher_BIP_expected_strike_pct, pitcher_k_pct)
+  
+pitcher_xBB_test_data <- pitcher_strikeout_big_join%>%
+  rename(pa = pa.x)
+
+pitcher_xBB_model_data <- pitcher_strikeout_big_join%>%
+  rename(pa = pa.x)%>%
+  filter(pa >= 285)
+
+
+pitcher_xBB_model1 <- lm(pitcher_BB_pct ~ ., data = pitcher_xBB_model_data[5:8])
+
+sm4 <- summary(pitcher_xBB_model1)
+
+mse4 <- function(sm4)
+  mean(sm4$residuals^2)
+
+mse4(sm4)
+
+
+pitchers_xBB_rates <- predict(pitcher_xBB_model1, pitcher_xBB_test_data[5:8])
+pitcher_xBB_test_data$pitchers_xBB_rates <- pitchers_xBB_rates
+
+
+
+
+
+pitcher_xBB_test_data%>%
+  filter(pa >= 285)->pitchers_walk_plot_data1
+
+p4 <- ggplot(pitcher_xBB_test_data, aes(x=pitchers_xBB_rates, y=pitcher_BB_pct)) +
+  xlab("Estimated Walk Rates") +
+  ylab("Real Walk Rates") +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Linear Regression Model: Real vs Estimated Walk Rates (min PA = 285)")
+
+ggplotly(p4)
+
+# PA >= 380; Correlation = 0.940187;
+# Found the break point at PA >= 375
+# PA >= 375; Correlation = 0.9402657;
+# PA >= 350; Correlation = 0.9387499;
+# PA >= 300; Correlation = 0.935122;
+# PA >= 200; Correlation = 0.9261552; 
+# PA >= 50; Correlation = 0.8925276;
+# PA >= 1; Correlation = 0.8547234  
+cor.test(pitchers_walk_plot_data1$pitcher_BB_pct, pitchers_walk_plot_data1$pitchers_xBB_rates)
+cor.test(pitcher_xBB_test_data$pitcher_BB_pct, pitcher_xBB_test_data$pitchers_xBB_rates)
+
+```
+
+```{r}
+qual_of_comp_data_all_pitchers%>%
+  filter(events != "null")->matchup_data_17_to_20
+```
+
+```{r}
+test_data1%>%
+  select(player_name, batter, game_year, est_batter_strikeout_rates)->batter_xK_data
+
+batter_walk_test_data1%>%
+  select(player_name, batter, game_year, est_batter_walk_rates)->batter_xBB_data
+
+pitchers_xSO_test_data%>%
+  select(pitcher_name, pitcher, game_year, pitchers_xSO_rates)->pitcher_xSO_data
+
+pitcher_xBB_test_data%>%
+  select(pitcher_name, pitcher, game_year, pitchers_xBB_rates)->pitcher_xBB_data
+
+```
+
+
+```{r}
+matchup_data_17_to_20%>%
+  select(game_year, player_name, batter, pitcher_name, pitcher)%>%
+  left_join(batter_xK_data, by = c("player_name", "batter", "game_year"))%>%
+  left_join(pitcher_xSO_data, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  left_join(batter_xBB_data, by = c("player_name", "batter", "game_year"))%>%
+  left_join(pitcher_xBB_data, by = c("pitcher_name", "pitcher", "game_year"))%>%
+  mutate(league_k_pct = ifelse(game_year == 2017, .216, ifelse(game_year == 2018, .223, ifelse(game_year == 2019, .230, .234))))%>%
+  mutate(league_bb_pct = ifelse(game_year == 2017, .08, ifelse(game_year == 2018, .085, ifelse(game_year == 2019, .085, .092))))%>%
+  mutate(final_adjusted_K_rate_num = ((est_batter_strikeout_rates*pitchers_xSO_rates)/league_k_pct))%>%
+  mutate(final_adjusted_K_rate_denom = ((est_batter_strikeout_rates*pitchers_xSO_rates)/league_k_pct)+
+           (1-est_batter_strikeout_rates)*(1-pitchers_xSO_rates)/(1-league_k_pct))%>%
+  mutate(final_adjusted_K_rate = final_adjusted_K_rate_num/final_adjusted_K_rate_denom)%>%
+  mutate(final_adjusted_BB_rate_num = ((est_batter_walk_rates*pitchers_xBB_rates)/league_bb_pct))%>%
+  mutate(final_adjusted_BB_rate_denom= ((est_batter_walk_rates*pitchers_xBB_rates)/league_bb_pct)+
+           (1-est_batter_walk_rates)*(1-pitchers_xBB_rates)/(1-league_bb_pct))%>%
+  mutate(final_adjusted_BB_rate = final_adjusted_BB_rate_num/final_adjusted_BB_rate_denom)->final_adjusted_data
+
+
+final_adjusted_data%>%
+  select(game_year, player_name, batter, final_adjusted_K_rate, final_adjusted_BB_rate)%>%
+  group_by(game_year, player_name, batter)%>%
+  summarize(Adjusted_SO_pct = mean(final_adjusted_K_rate, na.rm = TRUE))->batters_all_adjusted_K_rates
+
+final_adjusted_data%>%
+  select(game_year, player_name, batter, final_adjusted_K_rate, final_adjusted_BB_rate)%>%
+  group_by(game_year, player_name, batter)%>%
+  summarize(Adjusted_BB_pct = mean(final_adjusted_BB_rate, na.rm = TRUE))->batters_all_adjusted_BB_rates
+
+final_join <- left_join(batters_all_adjusted_K_rates, batters_all_adjusted_BB_rates, by = c("player_name", "batter", "game_year"))
+
+
+final_join <- na.omit(final_join)
+
+final_join
+
+```

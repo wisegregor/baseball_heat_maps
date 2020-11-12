@@ -1,0 +1,367 @@
+---
+title: "Predicing the Top-10 HR Hitters of 2021"
+author: "Greg Ngim"
+date: "11/10/2020"
+output: html_document
+---
+
+## Overview
+
+Instead of downloading data from Fangraphs, I wanted to construct this xHR per Fly Ball model from the ground up.
+I scraped statcast data using Bill Petti's baseballr package from the past 4 seasons (2017-2020).
+To save ample amounts of time, I saved the scraped data into a CSV and filtered out the necessary factors to build our model.
+I referenced Mike Podhorzer's xHR/FB model, article regarding quadratic equations, and Marcel article.
+Similar to the quadratic article, I tested a linear regression and a quadratic regression and used RMSE and correlation tests to select the better of the two.
+
+Optional: I tried factoring in opposite field fly ball percentage and pull fly ball percentage, but found it was a bit tricky to forecast how many oppo
+and pull fly balls all hitters will hit next season.
+
+Once I determined which model was the strongest for our data, I used the Marcel method to predict the 2021 rate stats for all hitters in our dataset.
+I ran the 2021 rate stats through the xHR/FB model and produced home run predictions for 2021.
+
+```{r}
+library(baseballr)
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(readr)
+library(caTools)
+```
+
+## Data Extraction
+
+```{r pressure, echo=TRUE, eval = TRUE}
+#apr_data_2017_week1 <- scrape_statcast_savant_batter_all(start_date = "2017-04-02", end_date = "2017-04-08")
+#apr_data_2017_week2 <- scrape_statcast_savant_batter_all(start_date = "2017-04-09", end_date = "2017-04-15")
+#apr_data_2017_week3 <- scrape_statcast_savant_batter_all(start_date = "2017-04-16", end_date = "2017-04-22")
+#apr_data_2017_week4 <- scrape_statcast_savant_batter_all(start_date = "2017-04-23", end_date = "2017-04-29")
+#apr_data_2017_week4plus <- scrape_statcast_savant_batter_all(start_date = "2017-04-30", end_date = "2017-04-30")
+
+#all_data_2017 <- rbind(apr_data_2017_week1, apr_data_2017_week2, apr_data_2017_week3, apr_data_2017_week4, apr_data_2017_week4plus)
+#all_data_17_to_20 <- rbind(all_data_2017, all_data_2018, all_data_2019, all_data_2020)
+```
+
+
+
+
+## Data Cleaning
+
+```{r cars, echo = TRUE, eval = TRUE}
+all_data_17_to_20 <- read_csv("all_events_data_17_to_20.csv")
+head(all_data_17_to_20)
+```
+
+```{r}
+# # Scraping in baseball savant data from 2017 to get Plate Appearances and Primary Position
+# statcast_scraper_2017_catchers <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 2, player_type = "batter")%>%
+#   mutate(primary_position = 2)
+# statcast_scraper_2017_1b <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 3, player_type = "batter")%>%
+#   mutate(primary_position = 3)
+# statcast_scraper_2017_2b <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 4, player_type = "batter")%>%
+#   mutate(primary_position = 4)
+# statcast_scraper_2017_3b <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 5, player_type = "batter")%>%
+#   mutate(primary_position = 5)
+# statcast_scraper_2017_ss <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 6, player_type = "batter")%>%
+#   mutate(primary_position = 6)
+# statcast_scraper_2017_lf <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 7, player_type = "batter")%>%
+#   mutate(primary_position = 7)
+# statcast_scraper_2017_cf <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 8, player_type = "batter")%>%
+#   mutate(primary_position = 8)
+# statcast_scraper_2017_rf <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 9, player_type = "batter")%>%
+#   mutate(primary_position = 9)
+# statcast_scraper_2017_dh <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 10, player_type = "batter")%>%
+#   mutate(primary_position = 10)
+```
+
+After scraping data from 2017-2020, I combined the data and saved it to a CSV file.
+
+```{r}
+statcast_all_batters <- read_csv("statcast_all_batters.csv")
+head(statcast_all_batters)
+```
+
+Here I make some minor data adjustments so we'll be able to join on player_name, batter, and game_year
+
+```{r}
+statcast_all_batters%>%
+  mutate(player_name = paste(first_name, last_name, sep = " "))%>%
+  rename(game_year = year, batter = player_id)%>%
+  select(player_name, batter, game_year, pa, primary_position)->statcast_join
+```
+
+```{r}
+# Since we only want true position players that hit, we need to filter out hitting pitchers from our data
+all_data_17_to_20_join <- left_join(all_data_17_to_20, statcast_join, by = c("player_name", "batter", "game_year"))%>%
+  mutate(primary_position = ifelse(is.na(primary_position), 1, primary_position))
+```
+
+```{r}
+all_data_17_to_20_join%>%
+  select(game_date, player_name, batter,
+         pitcher, events, game_type,
+         game_year, hit_distance_sc, launch_angle,
+         type, game_year, barrel, primary_position, pa)->xHR_data
+```
+
+First, we'll calculate home run per fly ball ratios for all players in the dataset. Note, instead of using statcast's definition of fly balls i.e. filtering bb_type == "fly_ball", I am classifying fly balls as balls in play with a distance of 150 feet or greater and a launch angle between 25 and 50 inclusively. Since I'm not 100% sure how statcast classifies their fly balls, I thought best to classify them by my own definition. Another note, I came up with 150 feet as a reasonable distance after looking up the distance from home plate to second base - which is approximately 127 feet. So We'll roll with 150 feet for now until we can get an exact measurement.
+
+```{r}
+xHR_data%>%
+  select(player_name, batter, game_year, events, game_type)%>%
+  filter(events == "home_run" & game_type == "R")%>%
+  group_by(player_name, batter, game_year) %>% tally() %>% rename(home_runs = n)->hr_per_season_df
+
+xHR_data%>%
+  filter(events != "null" & hit_distance_sc >= 150 & game_type == "R" & launch_angle >= 25 & launch_angle <= 50)%>%
+  group_by(game_year, player_name, batter)%>% tally()%>% rename(fly_balls = n)->fb_per_season_df
+
+hr_per_fb_rate_join <- left_join(fb_per_season_df, hr_per_season_df, by = c("player_name", "batter", "game_year"))%>%
+  mutate(hr_per_fb_rate = home_runs/fly_balls)
+```
+
+Next, we'll calculate the predictors for our model. Having worked on an expected home run model in the past, I'm going to calculate barrel rate, fly ball rate, and average fly ball distance for all players.
+
+```{r}
+xHR_data%>%
+  select(player_name, batter, game_year, game_type, barrel)%>%
+  filter(game_type == "R" & barrel == 1)%>%
+  group_by(player_name, batter, game_year) %>% tally() %>% rename(barrel_count = n) ->barrels_per_season_df
+
+xHR_data%>%
+  select(player_name, batter, game_year, game_type, type)%>%
+  filter(game_type == "R" & type == "X")%>%
+  group_by(player_name, batter, game_year) %>% tally() %>% rename(bip = n) ->bip_per_season_df
+
+brl_rate_join <- left_join(barrels_per_season_df, bip_per_season_df, by = c("player_name", "batter", "game_year"))%>%
+  mutate(brl_per_bip_rate = barrel_count/bip)
+
+fly_ball_rate_join <- left_join(fb_per_season_df, bip_per_season_df, by = c("player_name", "batter", "game_year"))%>%
+  mutate(fly_ball_rate = fly_balls/bip)
+
+xHR_data%>%
+  select(player_name, batter, game_year, game_type, hit_distance_sc, launch_angle)%>%
+  filter(game_type == "R" & hit_distance_sc >= 150 & launch_angle >= 25 & launch_angle <= 50)%>%
+  group_by(player_name, batter, game_year)%>%
+  summarize(avg_fly_ball_dist = mean(hit_distance_sc))->avg_fly_ball_dist_df
+```
+
+Great! Now that we have our initial predictors, let's join our data frames together and build our first model.
+
+```{r}
+big_join_1 <- left_join(hr_per_fb_rate_join, brl_rate_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(fly_ball_rate_join, by = c("player_name", "batter", "game_year"))%>%
+  left_join(avg_fly_ball_dist_df, by = c("player_name", "batter", "game_year"))%>%
+  select(game_year, player_name, batter, bip.x, hr_per_fb_rate, brl_per_bip_rate, fly_ball_rate, avg_fly_ball_dist)
+
+```
+
+## Data Modeling
+
+Let's split our full dataset into training and testing datasets. I split the data 70%/30% and will analyze the correlation between real and estimated home runs per fly ball.
+
+```{r}
+set.seed(101)
+sample <- sample.split(big_join_1$player_name, SplitRatio = .7)
+train <- subset(big_join_1, sample == TRUE)
+test <- subset(big_join_1, sample == FALSE)
+```
+
+After testing a few values for a minimum BIP I found that the break point to maximize our R-squared value while minimizing the RMSE (root mean squared error) is 220.
+
+# BIP = 225; Rsquared = 0.7489; RMSE = 0.05289529
+# Found the break-point at BIP = 220 - this maximizes our Rsquared value and minimizes our RMSE
+# BIP = 220; Rsquared = 0.7526; RMSE = 0.0528386
+# BIP = 200; Rsquared = 0.7453; RMSE = 0.05302214
+# BIP = 100; Rsquared = 0.7128; RMSE = 0.05882321
+
+```{r}
+train%>%
+  filter(bip.x >= 220)->train
+
+model1 <- lm(hr_per_fb_rate ~., data = train[5:8])
+summary(model1)
+
+rmse_model1 <- sqrt(mean(model1$residuals^2))
+rmse_model1
+```
+
+## Validation and Visualization
+
+```{r}
+test <- na.omit(test)
+test$hr_per_fb_rate_estimations <- predict(model1, test[5:8])
+
+# Correlation between real home runs per fly ball rates and estimated home runs per fly ball rate is 0.8001766 
+cor.test(test$hr_per_fb_rate, test$hr_per_fb_rate_estimations)
+
+test%>%
+  filter(bip.x >= 220)->test
+
+p <- ggplot(test, aes(x=hr_per_fb_rate, y=hr_per_fb_rate_estimations)) +
+  xlab("Real HR/FB Rates") +
+  ylab("Estimated HR/FB Rates") +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Linear Regression Model: Real vs Estimated HR/FB Rates (min BIP = 220)")
+
+ggplotly(p)
+```
+
+
+## Marcel Projection System
+
+In order to truly predict how many home runs a given player will hit in 2021, we will need to forecast the predictors in our model. In other words, we need estimated numbers for the 2021 season.
+
+Since our predictors are: barrel rate, fly ball rate, and average home run distance, I'm going to attempt to predict those rates using the Marcel projection system. Following this example from beyondtheboxscore, I'll first work on calculating barrel rate - which is total barrels divided by balls in play. So first we'll need to predict how many barrels each player will hit as well as how many total balls in play for 2021.
+
+Since the Marcel projection system relies on Plate Appearances to calculate counting stats, I'm going to bring in more data from baseball savant that contains PA data.
+
+The Expected Statistics leaderboard on baseball savant contains PA data, however, we only want to bring in hitter plate appearances. I tried testing the parameters such as position != 1 and specifying I only wanted "batters", but the scraper still brought in unwanted data i.e. pitchers that hit.
+
+
+
+Here begins the Marcel projections process...
+
+```{r}
+xBRL_2021_join <- left_join(barrels_per_season_df, statcast_join, by = c("player_name", "batter", "game_year"))
+
+xBRL_2021_join%>%
+  mutate(scaled_2020_barrel_count = ifelse(game_year == 2020, (600/pa)*barrel_count, barrel_count))%>%
+  mutate(weighed_BRL = ifelse(game_year == 2020, scaled_2020_barrel_count*5,
+                              ifelse(game_year == 2019, scaled_2020_barrel_count*4,
+                                     ifelse(game_year == 2018, scaled_2020_barrel_count*3, scaled_2020_barrel_count))))%>%
+  mutate(scaled_PA = ifelse(game_year == 2020, 200+(600*.5), ifelse(game_year == 2019, pa*.1, pa)))%>%
+  mutate(league_BRL_over_PA = ifelse(game_year == 2020, 0.050386431, ifelse(game_year == 2019, 0.049582878, ifelse(game_year == 2018, 0.045560363, 0))))%>%
+  mutate(scaled_league_PA = ifelse(game_year == 2020, 5*600*league_BRL_over_PA,
+                                   ifelse(game_year == 2019, 4*pa*league_BRL_over_PA,
+                                          ifelse(game_year == 2018, 3*pa*league_BRL_over_PA, pa*league_BRL_over_PA))))%>%
+  mutate(weighed_PAs = ifelse(game_year == 2020, 600*5, ifelse(game_year == 2019, pa*4, ifelse(game_year == 2018, pa*3, pa))))->xBRL_2021_prep
+
+xBRL_2021_prep%>%
+  group_by(player_name)%>%
+  summarize(numerator1 = sum(scaled_league_PA[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            denominator1 = sum(weighed_PAs[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            scaled_to_1200 = ((numerator1/denominator1)*1200),
+            sum_of_weighed_barrel_count = ((numerator1/denominator1)*1200) + sum(weighed_BRL[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            final_denom = 1200+denominator1,
+            expected_BRL_per_pa = sum_of_weighed_barrel_count/final_denom,
+            expected_BRL_2021 = expected_BRL_per_pa*sum(scaled_PA[game_year == 2020 | game_year == 2019]))->all_expected_barrel_count_2021
+
+all_expected_barrel_count_2021 <- na.omit(all_expected_barrel_count_2021)%>%select(player_name, expected_BRL_2021)
+
+xHR_data%>%
+  select(player_name, batter, game_year, game_type, type)%>%
+  filter(game_type == "R" & type == "X")%>%
+  group_by(player_name, batter, game_year) %>% tally() %>% rename(bip = n) ->all_bip_17_to_20
+
+
+xBIP_2021_join <- left_join(all_bip_17_to_20, statcast_join, by = c("player_name", "batter", "game_year"))%>%rename(bip_count = bip)
+
+xBIP_2021_join%>%
+  mutate(scaled_2020_bip_count = ifelse(game_year == 2020, (600/pa)*bip_count, bip_count))%>%
+  mutate(weighed_BIP = ifelse(game_year == 2020, scaled_2020_bip_count*5,
+                              ifelse(game_year == 2019, scaled_2020_bip_count*4,
+                                     ifelse(game_year == 2018, scaled_2020_bip_count*3, scaled_2020_bip_count))))%>%
+  mutate(scaled_PA = ifelse(game_year == 2020, 200+(600*.5), ifelse(game_year == 2019, pa*.1, pa)))%>%
+  mutate(league_BIP_over_PA = ifelse(game_year == 2020, 0.661173428, ifelse(game_year == 2019, 0.674204894, ifelse(game_year == 2018, 0.682092914, 0))))%>%
+  mutate(scaled_league_PA = ifelse(game_year == 2020, 5*600*league_BIP_over_PA,
+                                   ifelse(game_year == 2019, 4*pa*league_BIP_over_PA,
+                                          ifelse(game_year == 2018, 3*pa*league_BIP_over_PA, pa*league_BIP_over_PA))))%>%
+  mutate(weighed_PAs = ifelse(game_year == 2020, 600*5, ifelse(game_year == 2019, pa*4, ifelse(game_year == 2018, pa*3, pa))))->xBIP_2021_prep
+
+xBIP_2021_prep%>%
+  group_by(player_name)%>%
+  summarize(numerator1 = sum(scaled_league_PA[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            denominator1 = sum(weighed_PAs[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            scaled_to_1200 = ((numerator1/denominator1)*1200),
+            sum_of_weighed_bip_count = ((numerator1/denominator1)*1200) + sum(weighed_BIP[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            final_denom = 1200+denominator1,
+            expected_BIP_per_pa = sum_of_weighed_bip_count/final_denom,
+            expected_BIP_2021 = expected_BIP_per_pa*sum(scaled_PA[game_year == 2020 | game_year == 2019]))->all_expected_bip_count_2021
+
+all_expected_bip_count_2021 <- na.omit(all_expected_bip_count_2021)%>%select(player_name, expected_BIP_2021)
+
+xFB_2021_join <- left_join(fb_per_season_df, statcast_join, by = c("player_name", "batter", "game_year"))
+
+xFB_2021_join%>%
+  mutate(scaled_2020_fly_balls = ifelse(game_year == 2020, (600/pa)*fly_balls, fly_balls))%>%
+  mutate(weighed_FB = ifelse(game_year == 2020, scaled_2020_fly_balls*5,
+                             ifelse(game_year == 2019, scaled_2020_fly_balls*4,
+                                    ifelse(game_year == 2018, scaled_2020_fly_balls*3, scaled_2020_fly_balls))))%>%
+  mutate(scaled_PA = ifelse(game_year == 2020, 200+(600*.5), ifelse(game_year == 2019, pa*.1, pa)))%>%
+  mutate(league_FB_over_PA = ifelse(game_year == 2020, 0.233557874, ifelse(game_year == 2019, 0.237421991, ifelse(game_year == 2018, 0.237443218, 0))))%>%
+  mutate(scaled_league_PA = ifelse(game_year == 2020, 5*600*league_FB_over_PA,
+                                   ifelse(game_year == 2019, 4*pa*league_FB_over_PA,
+                                          ifelse(game_year == 2018, 3*pa*league_FB_over_PA, pa*league_FB_over_PA))))%>%
+  mutate(weighed_PAs = ifelse(game_year == 2020, 600*5, ifelse(game_year == 2019, pa*4, ifelse(game_year == 2018, pa*3, pa))))->xFB_2021_prep
+
+xFB_2021_prep%>%
+  group_by(player_name)%>%
+  summarize(numerator1 = sum(scaled_league_PA[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            denominator1 = sum(weighed_PAs[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            scaled_to_1200 = ((numerator1/denominator1)*1200),
+            sum_of_weighed_fly_balls = ((numerator1/denominator1)*1200) + sum(weighed_FB[game_year == 2020 | game_year == 2019 | game_year == 2018]),
+            final_denom = 1200+denominator1,
+            expected_fb_per_pa = sum_of_weighed_fly_balls/final_denom,
+            expected_fb_2021 = expected_fb_per_pa*sum(scaled_PA[game_year == 2020 | game_year == 2019]))->all_expected_fly_balls_2021
+
+all_expected_fly_balls_2021 <- na.omit(all_expected_fly_balls_2021)%>%select(player_name, expected_fb_2021)
+
+
+xHR_data%>%
+  select(player_name, batter, game_year, game_type, hit_distance_sc, launch_angle)%>%
+  filter(game_type == "R" & hit_distance_sc >= 150 & launch_angle >= 25 & launch_angle <= 50)%>%
+  group_by(player_name, batter)%>%
+  summarize(avg_fly_ball_dist = mean(hit_distance_sc[game_year == 2018 |
+                                                       game_year == 2019 |
+                                                          game_year == 2020]))->avg_fly_ball_dist_df_for_2021
+
+avg_fly_ball_dist_df_for_2021 <- na.omit(avg_fly_ball_dist_df_for_2021)
+
+all_2021_projections <- left_join(all_expected_barrel_count_2021, all_expected_bip_count_2021, by = "player_name")%>%
+  left_join(all_expected_fly_balls_2021, by = "player_name")%>%
+  left_join(avg_fly_ball_dist_df_for_2021, by = "player_name")%>%
+  mutate(expected_BRL_rate = expected_BRL_2021/expected_BIP_2021)%>%
+  mutate(expected_FB_rate = expected_fb_2021/expected_BIP_2021)%>%
+  select(player_name, batter, expected_fb_2021, expected_BRL_rate, expected_FB_rate, avg_fly_ball_dist)
+
+all_2021_projections <- na.omit(all_2021_projections)
+
+all_2021_projections%>%
+  rename(brl_per_bip_rate = expected_BRL_rate,
+         fly_ball_rate = expected_FB_rate,
+         avg_fly_ball_dist = avg_fly_ball_dist)->all_2021_projections
+
+
+all_2021_projections$est_hr_per_fb_2021 <- predict(model1, all_2021_projections[4:6])
+
+all_2021_projections$expected_hr_2021 <- all_2021_projections$expected_fb_2021*all_2021_projections$est_hr_per_fb_2021
+```
+
+Here we have the leaderboard for at least 1 PA last season.
+
+```{r}
+all_2021_projections%>%
+  select(player_name, batter, expected_hr_2021)->all_2021_projections
+
+all_2021_projections%>%
+  arrange(desc(expected_hr_2021))
+```
+
+And the more reasonable leaderboard for players with at least 50 PA's last season.
+
+```{r}
+statcast_join%>%
+  filter(game_year == 2020)->pas_2020
+
+
+all_2021_projections_min_20_pa <- left_join(all_2021_projections, pas_2020, by = "player_name")
+
+all_2021_projections_min_20_pa <- na.omit(all_2021_projections_min_20_pa)%>%
+  filter(pa >= 50)%>%
+  select(player_name, batter.x, pa, expected_hr_2021)%>%
+  rename(batter = batter.x)
+
+all_2021_projections_min_20_pa%>%
+  arrange(desc(expected_hr_2021))
+```
