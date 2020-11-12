@@ -1,6 +1,7 @@
-# MLB_hit_probability_heat_maps
-Shiny App displaying batter and pitcher heat maps
+# Data Science & Coding Examples
 
-This repository contains files used to deploy the Shiny app that displays batter and pitcher hit probability heat maps.
+Shiny App displaying batter and pitcher heat maps: https://wisegregor.shinyapps.io/shiny_apps_io
 
-The Shiny app can be found here: https://wisegregor.shinyapps.io/shiny_apps_io
+Shiny App predicting the top-10 HR hitters for 2021: https://wisegregor.shinyapps.io/strawberry_upload
+
+Shiny App creating a Quality of Competition metric which adjusts batter SO% and BB%: https://wisegregor.shinyapps.io/grape_upload
