@@ -31,17 +31,23 @@ statcast_all_pitchers <- rbind(statcast_scraper_2017_pitchers, statcast_scraper_
 # Joining pitcher names to our main data
 all_events_data_17_to_20 <- left_join(all_events_data_17_to_20, statcast_all_pitchers, by = c("pitcher", "game_year"))
 
-# Filtering only 2020 data (for now, will omit later and figure out how to filter based on season in shiny)
-all_events_data_17_to_20%>%
-  filter(game_year == 2020)->filtered_data
+all_events_data_17_to_20 <- na.omit(all_events_data_17_to_20)
 
-filtered_data%>%
+# Filtering past 3 seasons worth of data for heat maps
+all_events_data_17_to_20%>%
+  filter(game_year == 2020 | game_year == 2019 | game_year == 2018)->all_heat_map_data
+
+# Select players from 2020 only
+all_events_data_17_to_20%>%
+  filter(game_year == 2020)->filtered_data_player_names
+
+filtered_data_player_names%>%
   arrange(player_name)->filtered_data_hitters
 
-filtered_data%>%
+filtered_data_player_names%>%
   arrange(pitcher_name)->filtered_data_pitchers
 
-type <- "Hit Probability Heat Map"
+type <- "Hard Hit Probability Heat Map"
 
 # -----Constructing the strikezone------
 
@@ -60,6 +66,15 @@ ui <-  fluidPage(
   
   # Give the page a title
   titlePanel("Heat Maps"),
+  
+  # Descriptive text
+  h4("View is from the catcher's perspective."),
+  
+  h6("Per MLB, hard hit means BIP with Exit Velo greater than or equal to 95 MPH."),
+  
+  h6("Credit to Jim Albert for his work on constructing heat maps and for inspiring this project."),
+  
+  br(),
   
   # Generate a row with a sidebar
   sidebarLayout(      
@@ -90,7 +105,7 @@ ui <-  fluidPage(
       radioButtons(inputId = "bhanded", label = "Chose a Batter Handedness",
                    choices = c("All" = "all_batters", "R" = "RHH", "L" = "LHH")),
       
-      helpText("Data from 2020 Statcast from baseballr package")
+      helpText("Aggregate Statcast data from 2018-2020")
     ),
     
     mainPanel(
@@ -111,67 +126,73 @@ server <- (function(input, output) {
       
       if(input$ptype_bat == "all_pitches_bat" & input$phanded == "all_pitchers"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter(player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R")%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "all_pitches_bat" & input$phanded == "RHP"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter(player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & p_throws == "R")%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "all_pitches_bat" & input$phanded == "LHP"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter(player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & p_throws == "L")%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "fb_bat" & input$phanded == "all_pitchers"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter((player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FF") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SI") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FC"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "fb_bat" & input$phanded == "RHP"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter((player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FF" & p_throws == "R") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SI" & p_throws == "R") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FC" & p_throws == "R"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "fb_bat" & input$phanded == "LHP"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter((player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FF" & p_throws == "L") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SI" & p_throws == "L") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FC" & p_throws == "L"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "non_fb_bat" & input$phanded == "all_pitchers"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter((player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CU") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SL") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CH") |
@@ -179,14 +200,15 @@ server <- (function(input, output) {
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FS") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FO") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "EP"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "non_fb_bat" & input$phanded == "RHP"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter((player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CU" & p_throws == "R") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SL" & p_throws == "R") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CH" & p_throws == "R") |
@@ -194,14 +216,15 @@ server <- (function(input, output) {
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FS" & p_throws == "R") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FO" & p_throws == "R") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "EP" & p_throws == "R"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       if(input$ptype_bat == "non_fb_bat" & input$phanded == "LHP"){
         
-        filtered_data_hitters%>%
+        all_heat_map_data%>%
           filter((player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CU" & p_throws == "L") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SL" & p_throws == "L") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CH" & p_throws == "L") |
@@ -209,15 +232,16 @@ server <- (function(input, output) {
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FS" & p_throws == "L") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FO" & p_throws == "L") |
                    (player_name == input$batter & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "EP" & p_throws == "L"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data
       }
       
       # Generalized Additive Model
-      # Predicting hits based on plate_x and plate_z location of pitch
+      # Predicting hard hits based on plate_x and plate_z location of pitch
       
-      fit <- gam(Hit ~ s(X, Z), family=binomial, data=heat_map_data)
+      fit <- gam(hard_hit ~ s(X, Z), family=binomial, data=heat_map_data)
       
       # find predicted probabilities over a 50 x 50 grid
       x <- seq(-1.5, 1.5, length.out=50)
@@ -247,67 +271,73 @@ server <- (function(input, output) {
       
       if(input$ptype_pit == "all_pitches_pit" & input$bhanded == "all_batters"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter(pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R")%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       if(input$ptype_pit == "all_pitches_pit" & input$bhanded == "RHH"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter(pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & stand == "R")%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       if(input$ptype_pit == "all_pitches_pit" & input$bhanded == "LHH"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter(pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & stand == "L")%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       if(input$ptype_pit == "fb_pit" & input$bhanded == "all_batters"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter((pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FF") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SI") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FC"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       if(input$ptype_pit == "fb_pit" & input$bhanded == "RHH"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter((pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FF" & stand == "R") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SI" & stand == "R") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FC" & stand == "R"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       if(input$ptype_pit == "fb_pit" & input$bhanded == "LHH"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter((pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FF" & stand == "L") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SI" & stand == "L") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FC" & stand == "L"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       if(input$ptype_pit == "non_fb_pit" & input$bhanded == "all_batters"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter((pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CU") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SL") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CH") |
@@ -315,14 +345,15 @@ server <- (function(input, output) {
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FS") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FO") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "EP"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       if(input$ptype_pit == "non_fb_pit" & input$bhanded == "RHH"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter((pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CU" & stand == "R") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SL" & stand == "R") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CH" & stand == "R") |
@@ -330,14 +361,15 @@ server <- (function(input, output) {
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FS" & stand == "R") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FO" & stand == "R") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "EP" & stand == "R"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
-      if(input$ptype_pit == "non_fb_pitchers" & input$bhanded == "LHH"){
+      if(input$ptype_pit == "non_fb_pit" & input$bhanded == "LHH"){
         
-        filtered_data_pitchers%>%
+        all_heat_map_data%>%
           filter((pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CU" & stand == "L") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "SL" & stand == "L") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "CH" & stand == "L") |
@@ -345,15 +377,16 @@ server <- (function(input, output) {
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FS" & stand == "L") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "FO" & stand == "L") |
                    (pitcher_name == input$pitcher & events != "null" & events != "walk" & events != "hit_by_pitch" & game_type == "R" & pitch_type == "EP" & stand == "L"))%>%
-          mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
-          select(events, plate_x, plate_z, Hit)%>%
+          mutate(hard_hit = ifelse(launch_speed >= 95, 1, 0))%>%
+          #mutate(Hit = ifelse(events %in% c("single", "double", "triple", "home_run"), 1, 0))%>%
+          select(events, plate_x, plate_z, hard_hit)%>%
           rename(X = plate_x, Z = plate_z)->heat_map_data_pitchers
       }
       
       # Generalized Additive Model
-      # Predicting hits based on plate_x and plate_z location of pitch
+      # Predicting hard hits based on plate_x and plate_z location of pitch
       
-      fit <- gam(Hit ~ s(X, Z), family=binomial, data=heat_map_data_pitchers)
+      fit <- gam(hard_hit ~ s(X, Z), family=binomial, data=heat_map_data_pitchers)
       
       # find predicted probabilities over a 50 x 50 grid
       x <- seq(-1.5, 1.5, length.out=50)
