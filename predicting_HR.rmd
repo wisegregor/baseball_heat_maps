@@ -1,7 +1,7 @@
 ---
 title: "Predicing the Top-10 HR Hitters of 2021"
 author: "Greg Ngim"
-date: "11/12/2020"
+date: "11/13/2020"
 output: html_document
 ---
 
@@ -13,7 +13,7 @@ I leaned on [Mike Podhorzer's xHR per fly ball rate model](https://fantasy.fangr
 
 ## Methodology
 
-I chose to do things the "hard way". Instead of downloading data from Fangraphs and/or Baseball Savant, I'm going to use the [baseballr package](http://billpetti.github.io/baseballr/) created by Bill Petti to scrape statcast data from the past 4 seasons (2017-2020). Then, using the dplyr package within tidyverse, manually calculate our required stats for modeling, visualize our results with ggplot2 and plotly, and predict our predictors using Tom Tango's basic [Marcel projection system](https://www.baseball-reference.com/about/marcels.shtml. By predicting our predictors, I mean in order to use our xHR/FB model, we'll need to calculate the predictive rate stats for next season. I'll explain this in greater detail below.
+I chose to do things the "hard way". Instead of downloading data from Fangraphs and/or Baseball Savant, used the [baseballr package](http://billpetti.github.io/baseballr/) created by Bill Petti to scrape statcast data from the past 4 seasons (2017-2020). Then, using the dplyr package within tidyverse, manually calculate our required stats for modeling, visualize our results with ggplot2 and plotly, and predict our predictors using Tom Tango's basic [Marcel projection system](https://www.baseball-reference.com/about/marcels.shtml). By predicting our predictors, I mean in order to use our xHR/FB model, we'll need to calculate the predictive rate stats for next season. I'll explain this in greater detail below.
 
 ## Libraries
 
@@ -397,7 +397,7 @@ Great! Now that we have a strong xHR/FB model, we'll need to predict our predict
 
 ## Marcel Projections
 
-I'm going to attempt to predict those rates using the Marcel projection system. Following this example from beyondtheboxscore. The author, Henry Druschel, explains the origins of the Marcel projections and a concrete example which I followed to predict our predictors.
+I'm going to attempt to predict our predictive rates using the Marcel projection system. Following [this](https://www.beyondtheboxscore.com/2016/2/22/11079186/projections-marcel-pecota-zips-steamer-explained-guide-math-is-fun) example from beyondtheboxscore. The author, Henry Druschel, explains the origins of the Marcel projections and illustrated a concrete example which I followed to predict our predictors.
 
 Here's a brief rundown of what the Marcel Projections system is:
 
@@ -573,4 +573,6 @@ all_2021_projections_min_50_pa <- na.omit(all_2021_projections_min_50_pa)%>%
 all_2021_projections_min_50_pa%>%
   select(player_name, batter, expected_hr_2021)%>%
   arrange(desc(expected_hr_2021))
+
+# Full leaderboard can be found on my Github: proj_2021_HR_full_leaderboard.csv
 ```
