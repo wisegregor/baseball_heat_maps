@@ -1,42 +1,75 @@
 ---
 title: "Adjusting Strikeout and Walk Percentages"
 author: "Greg Ngim"
-date: "11/11/2020"
+date: "11/12/2020"
 output: html_document
 ---
 
-```{r}
-library(readr) # allows us to use read_csv() function
-library(tidyverse) # allows us to use dplyr and pipe function (%>%)
-library(baseballr) # allows us to scrape data directly from baseballsavant.com
-library(ggplot2) # allows us to plot scatter plots
-library(plotly) # allows us to interact with scatter plots
-```
-
 ## Overview
 
-So in this project, I was tasked with creating a Quality of Competition model/metric which adjusts hitter Strikeout percentage and Walk percentage according to the caliber of pitchers they faced in a given season.
+In this exercise, I will be creating a Quality of Competition model/metric which adjusts hitter strikeout and walk percentages according to the caliber of pitchers they faced in a given season. As I'm sure there are many ways to approach this problem, I thought best to predict the probability of a strikeout and probability of a walk for every batter/pitcher matchup using the log5 formula.
 
-My process will be to first gather data from baseball savant. I'll use Bill Petti's baseballr package to scrape Statcast data from the past 4 seasons (2017-2020). I'll use that data to create expected strikeout and walk rates for hitters as well as expected strikeout and walk rates for pitchers.
+Log 5 was first invented by Bill James and is used the estimate the probability that event A will occur, based on the true percentages of event A and B. In our cases, event A will be the probability of a batter striking out and also the probability of a batter walking, respectively. Event B will be the probability of a pitcher striking out the batter and the probability of a pitcher walking a batter, respectively. The log5 formula also accounts for the average success rate for the environment - so I will take into account the average strikeout and walk rates for hitters.
 
-Using a variation of Bill James's log5 equation, I'm going to simulate each batter-to-pitcher matchup based on each hitter's strikeout rate against his opponent's strikeout rate (the pitcher). I'll do the same for walk rates. Lastly, I'll take the average strikeout rate and walk rate for each hitter and that will be our final adjusted Strikeout percentage and Walk percentage according to the caliber of pitchers they faced.
+## Methodology
 
-I'm building xK% and xBB% models because they are proven to be more predictive year after year as opposed to pure K% and BB%. I'll show graphics displaying year to year correlations between K% and xK% and BB% and xBB%.
+My process will be to first gather data from baseball savant. I'll use Bill Petti's baseballr package to scrape Statcast data from the past 4 seasons (2017-2020). I'll use that data to create expected strikeout and walk rates for hitters as well as expected strikeout and walk rates for pitchers. From there, I'll append each hitters' expected strikeout and walk rates as well as each pitchers' expected strikeout and walk rates and use the log5 equation to simulate the results. Lastly, I'll take the average strikeout rate and walk rate for each hitter and that will be our final adjusted Strikeout percentage and Walk percentage according to the caliber of pitchers they faced.
 
-## Reading in Data
+## Libraries
 
-```{r cars}
+I'll write short blurbs about my step-by-step process to guide you along.
+
+Here we read in our required libraries to do this project.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+library(baseballr)
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(caTools)
+library(kableExtra)
+```
+
+## Data Extraction
+
+Here is where I scraped statcast data from Baseball Savant. For some reason, there is a cap of 40,000 rows one can scrape into a data frame at a time, so I had to manually scrape data week-by-week in order to stay under the data cap. I then combined all of those data frames by year, then combined all of those yearly data frames to make one very large data frame called all_data_17_to_20. I then filtered out all non-null events and stored these values in a data frame called qual_of_comp_data.
+
+After saving the data to a CSV, we’ll read in the data and check it out.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data <- read_csv("qual_of_comp_data.csv")
 head(qual_of_comp_data)
 ```
 
 ## Data Cleaning
 
+After realizing the data I scraped included pitchers with PA’s, I wanted to figure out a way to omit those players from the data set. I found that the “expected_statistics” leaderboard which is extractable from Baseball Savant, contained both player positions and plate appearance data. I scraped all non-pitcher data and combined the data together. I tried setting the position parameter to position != 1, but that did not work out.
 
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+# # Scraping in baseball savant data from 2017 to get Plate Appearances and Primary Position
+# statcast_scraper_2017_catchers <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 2, player_type = "batter")%>%
+#   mutate(primary_position = 2)
+# statcast_scraper_2017_1b <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 3, player_type = "batter")%>%
+#   mutate(primary_position = 3)
+# statcast_scraper_2017_2b <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 4, player_type = "batter")%>%
+#   mutate(primary_position = 4)
+# statcast_scraper_2017_3b <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 5, player_type = "batter")%>%
+#   mutate(primary_position = 5)
+# statcast_scraper_2017_ss <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 6, player_type = "batter")%>%
+#   mutate(primary_position = 6)
+# statcast_scraper_2017_lf <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 7, player_type = "batter")%>%
+#   mutate(primary_position = 7)
+# statcast_scraper_2017_cf <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 8, player_type = "batter")%>%
+#   mutate(primary_position = 8)
+# statcast_scraper_2017_rf <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 9, player_type = "batter")%>%
+#   mutate(primary_position = 9)
+# statcast_scraper_2017_dh <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 10, player_type = "batter")%>%
+#   mutate(primary_position = 10)
+```
 
-Since we need plate appearances, we'll first read in statcast data that was scraped from baseball savant and join PA's to batter_strikeouts dataframe to calculate strikeout percentage
+Here I make some minor data adjustments so we’ll be able to join on player_name, batter, and game_year.
 
-```{r}
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 statcast_all_batters <- read_csv("statcast_all_batters.csv")
 
 statcast_all_batters%>%
@@ -45,16 +78,31 @@ statcast_all_batters%>%
   select(player_name, game_year, batter, pa, primary_position)->statcast_join
 ```
 
-
 We want to filter out all pitchers that hit from our data in order not to skew our results.
 
-```{r}
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_hitters_only <- left_join(qual_of_comp_data, statcast_join, by = c("player_name", "batter", "game_year"))%>%
   mutate(primary_position = ifelse(is.na(primary_position), 1, primary_position))%>%
   filter(primary_position != 1)
 ```
 
-```{r pressure, echo=FALSE}
+## Data Cleaning and Manipulation
+
+First, we want to construct an expected strikeout rate model for hitters. This article, <https://community.fangraphs.com/modeling-strikeout-rate-with-plate-discipline-part-1-hitters/> provided great guidance in the building process. I tested our final model against another linear regression in which I included first pitch strike percentage as a predictor, however, as I increased the minimum number of plate appearances, it became insignificant pretty quickly.
+
+The best xK model for hitters I produced was the following:
+
+batter_strikeout_pct = zone_swing_pct + out_of_zone_miss_pct + in_zone_contact_pct + non_zone_pct
+
+batter_strikeout_pct = total batter strikeouts/total batter plate appearances
+zone_swing_pct = total pitches in strike zone and swung/total pitches in strike zone
+out_of_zone_miss_pct = total pitches out of strike zone and missed/total pitches out of zone
+in_zone_contact_pct = total pitches seen in expected* strike zone and contact/total pitches in strike zone and swung; *within the strike zone parameters with respect to plate_x and plate_z inclusively.
+non_zone_pct = 1-(total pitches seen in expected strike zone/total pitches seen)
+
+First, we'll calculate total batter strikeouts.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_hitters_only%>%
   select(player_name, batter, game_year, game_type, events)%>%
   filter(game_type == "R" & events == "strikeout")%>%
@@ -63,16 +111,17 @@ qual_of_comp_hitters_only%>%
   rename(total_strikeouts = n)->batter_strikeouts
 ```
 
+Here we join in plate appearances from our statcast_join dataset and mutate a column of batter strikeout percentages.
 
-```{r}
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 batter_strikeout_pct_join <- left_join(batter_strikeouts, statcast_join, c("player_name", "batter", "game_year"))%>%
   mutate(batter_strikeout_pct = total_strikeouts/pa)
 
 ```
 
+Here, we'll calculate batter swings in zone.
 
-
-```{r}
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_hitters_only%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
   select(player_name, batter, game_year, game_type, in_zone)%>%
@@ -94,17 +143,14 @@ qual_of_comp_hitters_only%>%
   group_by(player_name, batter, game_year)%>%
   tally()%>%
   rename(batter_pitches_in_zone_swung = n)->batter_pitches_in_zone_swung
-```
 
-```{r}
-# Here, we'll join our total pitches seen in zone dataframe and total pitches sen in zone and swung dataframes to create our zone swing percentage df
 zone_swing_pct_join <- left_join(batter_pitches_in_zone, batter_pitches_in_zone_swung, by = c("player_name", "batter","game_year"))%>%
   mutate(zone_swing_pct = batter_pitches_in_zone_swung/batter_pitches_in_zone)
-
 ```
 
-```{r}
-# ALL PITCHES OUT OF ZONE
+Here we'll calculate out of zone swings and misses.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_hitters_only%>%
   mutate(out_of_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 0, 1))%>%
   select(player_name, batter, game_year, game_type, out_of_zone)%>%
@@ -113,7 +159,6 @@ qual_of_comp_hitters_only%>%
   tally()%>%
   rename(batter_pitches_out_of_zone = n)->batter_pitches_out_of_zone
 
-# ALL PITCHES OUT OF AND CONTACT
 qual_of_comp_hitters_only%>%
   mutate(out_of_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 0, 1))%>%
   select(player_name, batter, game_year, game_type, out_of_zone, description)%>%
@@ -130,7 +175,9 @@ out_of_zone_miss_join <- left_join(batter_pitches_out_of_zone, batter_pitches_ou
   mutate(out_of_zone_miss_pct = 1-(batter_pitches_out_of_zone_contact/batter_pitches_out_of_zone))
 ```
 
-```{r}
+Here, we'll calculate non-zone percentage.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_hitters_only%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
   select(player_name, batter, game_year, game_type, in_zone, description)%>%
@@ -145,9 +192,7 @@ qual_of_comp_hitters_only%>%
 
 in_zone_contact_join <- left_join(batter_pitches_in_zone_swung, batter_pitches_in_zone_contact, by = c("player_name", "batter", "game_year"))%>%
   mutate(in_zone_contact_pct = batter_pitches_in_zone_contact/batter_pitches_in_zone_swung)
-```
 
-```{r}
 qual_of_comp_hitters_only%>%
   select(player_name, batter, game_year, game_type)%>%
   filter(game_type == "R")%>%
@@ -159,7 +204,9 @@ non_zone_pct_join <- left_join(batter_pitches_seen, batter_pitches_in_zone, by =
   mutate(non_zone_pct = 1-(batter_pitches_in_zone/batter_pitches_seen))
 ```
 
-```{r}
+Here is where I calcuated first pitch strike percentage, but it was ultimately not used in our final model.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_hitters_only%>%
   select(player_name, batter, game_year, game_type, pitch_number)%>%
   filter(game_type == "R" & pitch_number == 1)%>%
@@ -179,8 +226,9 @@ first_pitch_strike_join <- left_join(batter_first_pitches, batter_first_pitch_st
   mutate(first_pitch_strike_pct = batter_first_pitch_strikes/batter_first_pitches)
 ```
 
-```{r}
-# This is the big join that combines all of the necessary variables together
+Here is our big join that combines all of our predictor and response variables together. I'll also filter out pitchers here.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 batter_strikeouts_big_join <- left_join(batter_strikeout_pct_join, zone_swing_pct_join, by = c("player_name", "batter", "game_year"))%>%
   left_join(out_of_zone_miss_join, by = c("player_name", "batter", "game_year"))%>%
   left_join(in_zone_contact_join, by = c("player_name", "batter", "game_year"))%>%
@@ -196,6 +244,30 @@ batter_strikeouts_big_join%>%
   select(player_name, batter, game_year, pa, primary_position, batter_strikeout_pct, zone_swing_pct, out_of_zone_miss_pct, in_zone_contact_pct, non_zone_pct,
          first_pitch_strike_pct)%>%
   filter(primary_position != 1 & pa >= 375)->model_data1
+```
+
+## Data Modeling
+
+Let’s split our full dataset into training and testing datasets. I split the data 70%/30% and will analyze the correlation between real and estimated strikeout rates.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+set.seed(101)
+sample <- sample.split(model_data1$player_name, SplitRatio = .7)
+train <- subset(model_data1, sample == TRUE)
+test <- subset(model_data1, sample == FALSE)
+```
+
+After testing a few values for a minimum PA I found that the break point to maximize our R-squared value while minimizing the RMSE (root mean squared error) was 375.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+# PA = 395; Rsquared = 0.8485; RMSE = 0.0005145805
+# Based on correlation tests; I'm going with pa >= 375 as the break point because we maximize Rsquared and correlation while maintaining a low RMSE
+# PA = 375; Rsquared = 0.8494; RMSE = 0.0005228527
+# PA = 350; Rsquared = 0.8435; RMSE = 0.0005363987
+# PA = 300; Rsquared = 0.8436; RMSE = 0.0005477175
+
+train%>%
+  filter(pa >= 375)->train
 
 batter_strikeout_model1 <- lm(batter_strikeout_pct ~ zone_swing_pct + out_of_zone_miss_pct + in_zone_contact_pct + non_zone_pct, data = model_data1) # first_pitch_strike_pct
 
@@ -206,52 +278,65 @@ mse1 <- function(sm1)
   mean(sm1$residuals^2)
 
 mse1(sm1)
+```
 
-# PA = 400; Rsquared = 0.8476; RMSE = 0.0005176732
-# PA = 395; Rsquared = 0.8485; RMSE = 0.0005145805
-# Based on correlation tests; I'm going with pa >= 375 as the break point because we maximize Rsquared and correlation while maintaining a low RMSE
-# PA = 375; Rsquared = 0.8496; RMSE = 0.0005222842
-# PA = 350; Rsquared = 0.8435; RMSE = 0.0005363987
-# PA = 300; Rsquared = 0.8436; RMSE = 0.0005477175
-# PA = 200; Rsquared = 0.8391; RMSE = 0.0006086828
-# PA = 100; Rsquared = 0.8307; RMSE = 0.0007046955
+## Validation, Visualization and Strikeout Estimations
 
-# Lowest mean squared error for model1 = 0.0005145805
+Our xK% model produced a 92.17% correlation with real strikeout percentages with a min PA of 375 and a 86.34% correlation with a min PA of 1.
 
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 est_batter_strikeout_rates <- predict(batter_strikeout_model1, test_data1[6:11])
 test_data1$est_batter_strikeout_rates <- est_batter_strikeout_rates
 
 test_data1%>%
   filter(pa >= 375)->plot_data1
 
-p1 <- ggplot(plot_data1, aes(x=est_batter_strikeout_rates, y=batter_strikeout_pct)) +
-  xlab("Estimated Strikeout Rates") +
-  ylab("Real Strikeout Rates") +
-  geom_point() +
-  geom_smooth() +
-  ggtitle("Linear Regression Model: Real vs Estimated Strikout Rates (min PA = 375)")
-
-ggplotly(p1)
-
-# PA >= 400; Correlation = 0.9206631
-# PA >= 395; Correlation = 0.9211277;
-# PA >= 380; Correlation = 0.9211964;
-# Found the break point at PA >= 375
-# PA >= 375; Correlation = 0.921735;
-# PA >= 370; Correlation = 0.9207829;
-# PA >= 350; Correlation = 0.9173803;
-# PA >= 300; Correlation = 0.9182109;
-# PA >= 200; Correlation = 0.9148601; 
-# PA >= 50; Correlation = 0.9010168;
-# PA >= 1; Correlation = 0.8672581 
 cor.test(plot_data1$batter_strikeout_pct, plot_data1$est_batter_strikeout_rates)
 cor.test(test_data1$batter_strikeout_pct, test_data1$est_batter_strikeout_rates)
 ```
 
+Below is a plot displaying the Real Vs Estimated strikeout rates from our model for 2020 players with at least 375 PA's.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+colors <- c("2" = "#FF6600", "3" = "#0066FF", "4" = "#0066FF", "5" = "#0066FF", "6" = "#0066FF",
+            "7" = "#00FF00", "8" = "#00FF00", "9" = "#00FF00", "10" = "#000000")
+
+p1 <- ggplot(plot_data1, aes(x = est_batter_strikeout_rates, y = batter_strikeout_pct, color = factor(primary_position))) + geom_point(aes(text=player_name)) + 
+  labs(title = "2020 Real vs Estimated Strikout Rates (min PA = 375)",
+       x = "Expected Strikeouts",
+       y = "Actual Strikeouts") + scale_color_manual(values = colors) + geom_abline()
+
+ggplotly(p1)
+```
+
 ## Batter xBB% Model
 
-```{r}
-# Batter Walk Model
+Next up is our batter expected walk rate model. For guidance, I referenced this article <https://saberscience.sport.blog/2020/07/13/modeling-walk-rate-with-plate-discipline-part-1-hitters/>. Even though I used similar predictors as Ishaan Sethi, my linear regression produced a higher R-squared and lower RMSE.
+
+The best xBB model for hitters I produced was the following:
+
+batter_walk_model1 = batter_walk_pct + out_of_zone_swing_pct + batter_zone_pct + first_pitch_strike_pct.
+
+Another model I tested was replacing in zone contact percentage with batter zone percentage because I thought that adding some form of contact percentage into the model would tend to lead to lower walk rates. It turned out that batter zone percentage performed much better than in zone contact percentage - so I went with it as such.
+
+Since we previously calculated batter zone and first pitch strike percentage, all we need to calculate are walk rate and out of zone swing percentages.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+qual_of_comp_hitters_only%>%
+  select(player_name, batter, game_year, game_type, events)%>%
+  filter(game_type == "R" & events == "walk")%>%
+  group_by(player_name, batter, game_year)%>%
+  tally()%>%
+  rename(batter_walks = n)->batter_walks
+
+batter_walk_pct_join <- left_join(batter_walks, statcast_join, c("player_name", "game_year", "batter"))%>%
+  mutate(batter_walk_pct = batter_walks/pa)
+
+batter_zone_pct_join <- left_join(batter_pitches_seen, batter_pitches_in_zone, by = c("player_name", "game_year", "batter"))%>%
+  mutate(batter_zone_pct = batter_pitches_in_zone/batter_pitches_seen)
+```
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_hitters_only%>%
   mutate(out_of_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 0, 1))%>%
   select(player_name, batter, game_year, game_type, out_of_zone, description)%>%
@@ -271,24 +356,9 @@ out_of_zone_swing_pct_join <- left_join(batter_pitches_out_of_zone, batter_out_o
   mutate(out_of_zone_swing_pct = batter_out_of_zone_swung/batter_pitches_out_of_zone)
 ```
 
-```{r}
-qual_of_comp_hitters_only%>%
-  select(player_name, batter, game_year, game_type, events)%>%
-  filter(game_type == "R" & events == "walk")%>%
-  group_by(player_name, batter, game_year)%>%
-  tally()%>%
-  rename(batter_walks = n)->batter_walks
+Here is our big join that combines all of our predictor and response variables together. I'll also filter out pitchers here.
 
-batter_walk_pct_join <- left_join(batter_walks, statcast_join, c("player_name", "game_year", "batter"))%>%
-  mutate(batter_walk_pct = batter_walks/pa)
-
-batter_zone_pct_join <- left_join(batter_pitches_seen, batter_pitches_in_zone, by = c("player_name", "game_year", "batter"))%>%
-  mutate(batter_zone_pct = batter_pitches_in_zone/batter_pitches_seen)
-```
-
-Even though I referenced this link https://saberscience.sport.blog/2020/07/13/modeling-walk-rate-with-plate-discipline-part-1-hitters/ my linear regression produced a higher R-squared and lower RMSE.
-
-```{r}
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 batter_walks_big_join <- left_join(batter_walk_pct_join, out_of_zone_swing_pct_join, by = c("player_name", "batter", "game_year"))%>%
   left_join(in_zone_contact_join, by = c("player_name", "batter", "game_year"))%>%
   left_join(non_zone_pct_join, by = c("player_name", "batter", "game_year"))%>%
@@ -303,7 +373,30 @@ batter_walks_big_join%>%
 batter_walks_big_join%>%
   select(player_name, batter, game_year, pa, primary_position, batter_walk_pct, out_of_zone_swing_pct, in_zone_contact_pct, batter_zone_pct,
          first_pitch_strike_pct)%>%
-  filter(primary_position != 1 & pa >= 375)->batter_walk_model_data1
+  filter(primary_position != 1 & pa >= 395)->batter_walk_model_data1
+```
+
+## Data Modeling
+
+Let’s split our full dataset into training and testing datasets. I split the data 70%/30% and will analyze the correlation between real and estimated strikeout rates.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+set.seed(101)
+sample2 <- sample.split(batter_walk_model_data1$player_name, SplitRatio = .7)
+train2 <- subset(batter_walk_model_data1, sample2 == TRUE)
+test2 <- subset(batter_walk_model_data1, sample2 == FALSE)
+```
+
+After testing a few values for a minimum PA I found that the break point to maximize our R-squared value while minimizing the RMSE (root mean squared error) was 375.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+# PA = 400; Rsquared = 0.8872; RMSE = 0.0001026816
+# Based on the R-squared value and RMSE; I'm going with pa >= 395 as the break point because we maximize R-squared while maintaining a low RMSE
+# PA = 395; Rsquared = 0.8887; RMSE = 0.0001021528
+# PA = 375; Rsquared = 0.8841; RMSE = 0.0001053903
+
+train2%>%
+  filter(pa >= 395)->train2
 
 batter_walk_model1 <- lm(batter_walk_pct ~ out_of_zone_swing_pct + batter_zone_pct + first_pitch_strike_pct, data = batter_walk_model_data1) #in_zone_contact_pct batter_zone_pct
 
@@ -314,38 +407,45 @@ mse2 <- function(sm2)
   mean(sm2$residuals^2)
 
 mse2(sm2)
+```
 
-# MODEL WITH IN ZONE CONTACT; RSQUARED = 0.8257; RMSE = 0.0001584749
-# MODEL WITH ZONE PERCENTAGE; RSQUARED = 0.8841; RMSE = 0.0001053903
+## Validation, Visualization and Walk Estimations
 
+Our xBB% model produced a 94.27% correlation with real strikeout percentages with a min PA of 395 and a 85.48% correlation with a min PA of 1.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 est_batter_walk_rates <- predict(batter_walk_model1, batter_walk_test_data1[6:10])
 batter_walk_test_data1$est_batter_walk_rates <- est_batter_walk_rates
 
 batter_walk_test_data1%>%
-  filter(pa >= 375)->batter_walk_plot_data1
+  filter(pa >= 395)->batter_walk_plot_data1
 
-p2 <- ggplot(batter_walk_plot_data1, aes(x=est_batter_walk_rates, y=batter_walk_pct)) +
-  xlab("Estimated Walk Rates") +
-  ylab("Real Walk Rates") +
-  geom_point() +
-  geom_smooth() +
-  ggtitle("Linear Regression Model: Real vs Estimated Walk Rates (min PA = 375)")
-
-ggplotly(p2)
-
-# PA >= 380; Correlation = 0.940187;
-# Found the break point at PA >= 375
-# PA >= 375; Correlation = 0.9402657;
-# PA >= 350; Correlation = 0.9387499;
-# PA >= 300; Correlation = 0.935122;
-# PA >= 200; Correlation = 0.9261552; 
-# PA >= 50; Correlation = 0.8925276;
-# PA >= 1; Correlation = 0.8547234  
 cor.test(batter_walk_plot_data1$batter_walk_pct, batter_walk_plot_data1$est_batter_walk_rates)
 cor.test(batter_walk_test_data1$batter_walk_pct, batter_walk_test_data1$est_batter_walk_rates)
 ```
 
-```{r}
+Below is a plot displaying the Real Vs Estimated strikeout rates from our model for 2020 players with at least 375 PA's.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+p2 <- ggplot(batter_walk_plot_data1, aes(x = est_batter_walk_rates, y = batter_walk_pct, color = factor(primary_position))) + geom_point(aes(text=player_name)) + 
+  labs(title = "2020 Real vs Estimated Walk Rates (min PA = 395)",
+       x = "Expected Walk",
+       y = "Actual Walk") + scale_color_manual(values = colors) + geom_abline()
+
+ggplotly(p2)
+```
+
+## Pitcher xK% Model
+
+Halfway there. For our expected strikeout model for pitchers, I used Mike Podhorzer's xK% model for pitchers as a reference. Here is the link to the article <https://fantasy.fangraphs.com/introducing-the-new-pitcher-xk-updated-for-2017/>.
+
+The best pitcher expected strikeout model I came up with is as follows:
+
+pitcher_k_pct = pitcher_expected_strike_percentage + in_zone_looking_strike_pct + in_zone_whiff_pct + in_zone_foul_pct
+
+Firstly, we need to scrape in only pitcher data from baseball savant using Bill Petti's baseballr package.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 # Scraping in baseball savant data from 2017 to get Pitcher Names
 statcast_scraper_2017_pitchers <- scrape_savant_leaderboards(leaderboard = "expected_statistics", year = 2017, min_pa = 1, position = 1, player_type = "pitcher")%>%
   mutate(primary_position = 1)%>%
@@ -370,34 +470,23 @@ statcast_all_pitchers <- rbind(statcast_scraper_2017_pitchers, statcast_scraper_
 statcast_all_pitchers
 ```
 
+Also, instead of reading in all non-null events data like we did for batters, we need all pitch data in order to build xK% and xBB% models for pitchers. After scraping that data in, I saved the data to a CSV file and read it in.
 
-```{r}
-# new best ish model
-# xK% = -0.8432 + (Str% * 0.2916) + (L/Str * 1.2689) + (S/Str * 1.5334) + (F/Str * 0.9672)
-#Str% — Strike Percentage | Strikes / Total Pitches
-#L/Str — Looking Strike Percentage | Strikes Looking / Total Strikes
-#S/Str — Swinging Strike Percentage | Strikes Swinging Without Contact / Total Strikes
-#F/Str — Foul Ball Strike Percentage | Pitches Fouled Off / Total Strikes
-
-
-# So I think the big thing/main point is proving that the xK and xBB models
-# have stronger correlation year to year and that's why I'm adjusting
-# strikeout and walk rates before simulating
-# so a double expected adjustment
-
-# ok lets get to work
-# Str% strike percentage
-# what if i do, expected strikes / total pitches
-
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_pitchers <- read_csv("qual_of_comp_data_pitchers.csv")
 ```
 
-```{r}
+We'll join our large data frame, qual_of_comp_data_pitchers, to our statcast pitchers data frame and begin cleaning our data.
 
-# Join in pitcher names
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_all_pitchers <- left_join(qual_of_comp_data_pitchers, statcast_all_pitchers, by = c("pitcher", "game_year"))
+```
 
+## Data Cleaning and Manipulation
 
+Here, we'll calculate expected strike percentage for all pitchers.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 # Here we get expected strike zone percentage
 qual_of_comp_data_all_pitchers%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
@@ -407,8 +496,6 @@ qual_of_comp_data_all_pitchers%>%
   tally()%>%
   rename(pitcher_pitches_in_zone = n)->pitcher_pitches_in_zone
 
-
-
 qual_of_comp_data_all_pitchers%>%
   select(pitcher_name, pitcher, game_year, game_type, pitch_number)%>%
   filter(game_type == "R" & pitch_number != "null")%>%
@@ -416,12 +503,13 @@ qual_of_comp_data_all_pitchers%>%
   tally()%>%
   rename(pitcher_total_pitches_thrown = n)->pitcher_total_pitches_thrown
 
-
 pitcher_expected_strike_percentage_join <- left_join(pitcher_pitches_in_zone, pitcher_total_pitches_thrown, by = c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_expected_strike_percentage = pitcher_pitches_in_zone/pitcher_total_pitches_thrown)
 ```
 
-```{r}
+Next, we'll calculate strikeout percentage for all pitchers.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_all_pitchers%>%
   select(pitcher_name, pitcher, game_year, game_type, events)%>%
   filter((game_type == "R" & events == "strikeout") | (game_type == "R" & events == "strikeout_double_play"))%>%
@@ -435,17 +523,13 @@ qual_of_comp_data_all_pitchers%>%
 
 pitcher_tbf <- unique(pitcher_tbf)
 
-
-
 pitcher_k_pct_join <- left_join(pitchers_total_strikeouts, pitcher_tbf, by = c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_k_pct = pitchers_total_strikeouts/pa)
 ```
 
-```{r}
-# Now we need to get looking strike percentage
-# this AND batter did NOT swing
-# so what are swings
+Next, we'll calculate in zone looking strike percentages.
 
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_all_pitchers%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
   select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
@@ -457,15 +541,13 @@ qual_of_comp_data_all_pitchers%>%
   tally()%>%
   rename(pitcher_pitches_in_zone_looking = n)->pitcher_pitches_in_zone_looking
 
-
-
 pitcher_in_zone_looking_strike_pct_join <- left_join(pitcher_pitches_in_zone_looking, pitcher_pitches_in_zone, by = c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_in_zone_looking_strike_pct = pitcher_pitches_in_zone_looking/pitcher_pitches_in_zone)
 ```
 
+Next, we'll calculate in zone whiff percentages.
 
-```{r}
-# Need in zone and swings
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_all_pitchers%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
   select(pitcher_name, pitcher, game_year, game_type, description, in_zone)%>%
@@ -480,7 +562,6 @@ qual_of_comp_data_all_pitchers%>%
   tally()%>%
   rename(pitcher_pitches_in_zone_and_swung = n)->pitcher_pitches_in_zone_and_swung
 
-# now we need expected strike zones and miss
 qual_of_comp_data_all_pitchers%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
   select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
@@ -490,18 +571,13 @@ qual_of_comp_data_all_pitchers%>%
   tally()%>%
   rename(pitcher_pitches_in_zone_whiffs = n)->pitcher_pitches_in_zone_whiffs
 
-
-
 pitcher_in_zone_whiffs_pct_join <- left_join(pitcher_pitches_in_zone_whiffs, pitcher_pitches_in_zone_and_swung, by = c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_in_zone_whiffs_pct = pitcher_pitches_in_zone_whiffs/pitcher_pitches_in_zone_and_swung)
 ```
 
-```{r}
-# lastly we need foul balls on pitches in expected strike zone
+Lastly, we'll calculate in zone foul ball percentages
 
-#qual_of_comp_foul_ball_data <- left_join(foul_ball_data, statcast_all_pitchers, by = c("pitcher", "game_year"))
-
-
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_all_pitchers%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
   select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
@@ -512,20 +588,13 @@ qual_of_comp_data_all_pitchers%>%
   tally()%>%
   rename(pitcher_pitches_in_zone_fouls = n)->pitcher_pitches_in_zone_fouls
 
-
-
 pitcher_in_zone_foul_pct_join <- left_join(pitcher_pitches_in_zone_fouls, pitcher_pitches_in_zone_and_swung, by = c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_in_zone_foul_pct = pitcher_pitches_in_zone_fouls/pitcher_pitches_in_zone_and_swung)
 ```
 
-```{r}
+Here is our big join which combines our response and predictors.
 
-pitcher_expected_strike_percentage_join
-pitcher_in_zone_foul_pct_join
-pitcher_in_zone_whiffs_pct_join
-pitcher_in_zone_looking_strike_pct_join
-pitcher_k_pct_join
-
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 pitchers_expected_strikeout_big_join <- left_join(pitcher_k_pct_join, pitcher_expected_strike_percentage_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
   left_join(pitcher_in_zone_looking_strike_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
   left_join(pitcher_in_zone_whiffs_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
@@ -536,9 +605,30 @@ pitchers_expected_strikeout_big_join <- left_join(pitcher_k_pct_join, pitcher_ex
 pitchers_xSO_test_data <- pitchers_expected_strikeout_big_join
 
 pitchers_xSO_model_data <- pitchers_expected_strikeout_big_join%>%
-  filter(pa >= 200)
-  
+  filter(pa >= 250)
+```
 
+## Data Modeling
+
+Let’s split our full dataset into training and testing datasets. I split the data 70%/30% and will analyze the correlation between real and estimated strikeout rates.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+set.seed(101)
+sample3 <- sample.split(pitchers_xSO_model_data$pitcher_name, SplitRatio = .7)
+train3 <- subset(pitchers_xSO_model_data, sample3 == TRUE)
+test3 <- subset(pitchers_xSO_model_data, sample3 == FALSE)
+```
+
+After testing a few values for a minimum PA I found that the break point to maximize our R-squared value while minimizing the RMSE (root mean squared error) was 375.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+# PA = 255; Rsquared = 0.7822; RMSE = 0.0007339413
+# PA = 250; Rsquared = 0.7916; RMSE = 0.0007329717
+# Based on the R-squared value and RMSE; I'm going with pa >= 395 as the break point because we maximize R-squared while maintaining a low RMSE
+# PA = 200; Rsquared = 0.7799; RMSE = 0.0008150911
+
+train3%>%
+  filter(pa >= 250)->train3
 
 pitchers_xSO_model1 <- lm(pitcher_k_pct ~ ., data = pitchers_xSO_model_data[5:9])
 
@@ -547,65 +637,51 @@ sm3 <- summary(pitchers_xSO_model1)
 mse3 <- function(sm3)
   mean(sm3$residuals^2)
 
+sm3
 mse3(sm3)
-
-
-pitchers_xSO_rates <- predict(pitchers_xSO_model1, pitchers_xSO_test_data[5:9])
-#test_data$estimated_strikeout_rates <- data.frame(estimated_strikeout_rates)
-
-pitchers_xSO_test_data$pitchers_xSO_rates <- pitchers_xSO_rates
-
-
-
-
-pitchers_xSO_test_data%>%
-  filter(pa >= 200)->pitchers_strikeout_plot_data1
-
-p3 <- ggplot(pitchers_xSO_test_data, aes(x=pitchers_xSO_rates, y=pitcher_k_pct)) +
-  xlab("Estimated Strikeout Rates") +
-  ylab("Real Strikeout Rates") +
-  geom_point() +
-  geom_smooth() +
-  ggtitle("Linear Regression Model: Real vs Estimated Strikeout Rates (min PA = 200)")
-
-ggplotly(p3)
-
-# PA >= 380; Correlation = 0.940187;
-# Found the break point at PA >= 375
-# PA >= 375; Correlation = 0.9402657;
-# PA >= 350; Correlation = 0.9387499;
-# PA >= 300; Correlation = 0.935122;
-# PA >= 200; Correlation = 0.9261552; 
-# PA >= 50; Correlation = 0.8925276;
-# PA >= 1; Correlation = 0.8547234  
-cor.test(pitchers_strikeout_plot_data1$pitcher_k_pct, pitchers_strikeout_plot_data1$pitchers_xSO_rates)
-cor.test(pitchers_xSO_test_data$pitcher_k_pct, pitchers_xSO_test_data$pitchers_xSO_rates)
-
 ```
 
+## Validation, Visualization and Walk Estimations
 
+Our xBB% model produced a 88.97% correlation with real strikeout percentages with a min PA of 395 and a 74.98% correlation with a min PA of 1.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+pitchers_xSO_rates <- predict(pitchers_xSO_model1, pitchers_xSO_test_data[5:9])
+pitchers_xSO_test_data$pitchers_xSO_rates <- pitchers_xSO_rates
+
+pitchers_xSO_test_data%>%
+  filter(pa >= 250)->pitchers_xSO_test_data2
+
+pitchers_xSO_test_data%>%
+  filter(pa >= 250 & game_year == 2020)->pitchers_strikeout_plot_data1
+
+cor.test(pitchers_xSO_test_data2$pitcher_k_pct, pitchers_xSO_test_data2$pitchers_xSO_rates)
+cor.test(pitchers_xSO_test_data$pitcher_k_pct, pitchers_xSO_test_data$pitchers_xSO_rates)
+```
+Below is a plot displaying the Real Vs Estimated Pitcher strikeout rates from our model for 2020 pitchers with at least 250 TBF's.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+p3 <- ggplot(pitchers_strikeout_plot_data1, aes(x = pitchers_xSO_rates, y = pitcher_k_pct)) + geom_point(aes(text=pitcher_name)) + 
+  labs(title = "2020 Real vs Estimated Pitcher Strikeout Rates (min TBF = 250)",
+       x = "Expected Strikeout",
+       y = "Actual Strikeout") + scale_color_manual(values = colors) + geom_abline()
+
+ggplotly(p3)
+```
 
 ## Pitcher Expected Walk Model
 
+Home stretch. For our expected walk model for pitchers, I used Mike Podhorzer's xBB% model for pitchers as a reference. Here is the link to the article <https://fantasy.fangraphs.com/the-bestest-pitcher-expected-bb-formula-yet//>.
 
+The best pitcher expected walk model I came up with is as follows:
 
-```{r}
-# Pitcher Expected BB% equation
-# From Mike Podhorzer
-# xBB% = 0.6583 + (-0.7838 * Str%) + (-0.2685 * I/Str)
-# where Str% is strike percentage
-# lets do expected strikes thrown/all pitches
-# I/Str = balls in play per strike
+pitcher_BB_pct = pitcher_expected_strike_percentage + pitcher_ball_in_play_per_expected_strike_percentage
 
-# Newer BB% equation
-# xBB% = 0.7598 + (-0.7300 * Str%) + (-0.5729 * I/Str) + (-0.2341 * K%)
-# if we replace Str with expected strike percentage
-# balls in play per expected strike
-# and expected strikeout percentage, we'll have an expected walk rate
+All we have to do is calculate pitcher walk percentage and BIP per expected strike percentage.
 
-# i think all we need to calculate is balls in play per expected strike
+## Data Cleaning and Manipulation
 
-
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_all_pitchers%>%
   select(pitcher_name, pitcher, game_year, game_type, events)%>%
   filter((game_type == "R" & events == "walk"))%>%
@@ -613,10 +689,8 @@ qual_of_comp_data_all_pitchers%>%
   tally()%>%
   rename(pitcher_total_walks = n)->pitcher_total_walks
 
-
 pitcher_walk_pct_join <- left_join(pitcher_total_walks, statcast_all_pitchers, c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_BB_pct = pitcher_total_walks/pa)
-
 
 qual_of_comp_data_all_pitchers%>%
   select(pitcher_name, pitcher, game_year, game_type, description)%>%
@@ -640,7 +714,6 @@ qual_of_comp_data_all_pitchers%>%
 pitcher_true_strike_pct_join <- left_join(pitcher_total_pitches_thrown, pitcher_true_strikes_thrown, by = c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_true_strike_pct = pitcher_true_strikes_thrown/pitcher_total_pitches_thrown)
 
-
 qual_of_comp_data_all_pitchers%>%
   mutate(in_zone = ifelse(plate_x >= -0.95 & plate_x <= 0.95 & plate_z >= 1.6 & plate_z <= 3.5, 1, 0))%>%
   select(pitcher_name, pitcher, game_year, game_type, in_zone, description)%>%
@@ -654,19 +727,42 @@ qual_of_comp_data_all_pitchers%>%
 pitcher_BIP_expected_strike_join <- left_join(pitcher_BIP_expected_strike, pitcher_pitches_in_zone, by = c("pitcher_name", "pitcher", "game_year"))%>%
   mutate(pitcher_BIP_expected_strike_pct = pitcher_BIP_expected_strike/pitcher_pitches_in_zone)
 
-
-pitcher_strikeout_big_join <- left_join(pitcher_walk_pct_join, pitcher_true_strike_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
+pitcher_walk_big_join <- left_join(pitcher_walk_pct_join, pitcher_true_strike_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
   left_join(pitcher_BIP_expected_strike_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
   left_join(pitcher_k_pct_join, by = c("pitcher_name", "pitcher", "game_year"))%>%
   select(pitcher_name, pitcher, game_year, pa.x, pitcher_BB_pct, pitcher_true_strike_pct, pitcher_BIP_expected_strike_pct, pitcher_k_pct)
-  
-pitcher_xBB_test_data <- pitcher_strikeout_big_join%>%
+```
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+pitcher_xBB_test_data <- pitcher_walk_big_join%>%
   rename(pa = pa.x)
 
-pitcher_xBB_model_data <- pitcher_strikeout_big_join%>%
+pitcher_xBB_model_data <- pitcher_walk_big_join%>%
   rename(pa = pa.x)%>%
-  filter(pa >= 285)
+  filter(pa >= 250)
+```
 
+## Data Modeling
+
+Let’s split our full dataset into training and testing datasets. I split the data 70%/30% and will analyze the correlation between real and estimated strikeout rates.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+set.seed(101)
+sample4 <- sample.split(pitcher_xBB_model_data$pitcher_name, SplitRatio = .7)
+train4 <- subset(pitcher_xBB_model_data, sample4 == TRUE)
+test4 <- subset(pitcher_xBB_model_data, sample4 == FALSE)
+```
+
+After testing a few values for a minimum PA I found that the break point to maximize our R-squared value while minimizing the RMSE (root mean squared error) was 375.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+# PA = 255; Rsquared = 0.7333; RMSE = 0.0001352562
+# Based on the R-squared value and RMSE; I'm going with pa >= 250 as the break point because we maximize R-squared while maintaining a low RMSE
+# PA = 250; Rsquared = 0.7355; RMSE = 0.0001372445
+# PA = 200; Rsquared = 0.7276; RMSE = 0.0001695385
+
+train4%>%
+  filter(pa >= 250)->train4
 
 pitcher_xBB_model1 <- lm(pitcher_BB_pct ~ ., data = pitcher_xBB_model_data[5:8])
 
@@ -675,47 +771,49 @@ sm4 <- summary(pitcher_xBB_model1)
 mse4 <- function(sm4)
   mean(sm4$residuals^2)
 
+sm4
 mse4(sm4)
+```
 
+## Validation, Visualization and Walk Estimations
 
+Our xBB% model produced a 85.76% correlation with real walk percentages with a min TBF of 250 and a 83.02% correlation with a min PA of 1.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 pitchers_xBB_rates <- predict(pitcher_xBB_model1, pitcher_xBB_test_data[5:8])
 pitcher_xBB_test_data$pitchers_xBB_rates <- pitchers_xBB_rates
 
-
-
-
+pitcher_xBB_test_data%>%
+  filter(pa >= 250)->pitcher_xBB_test_data2
 
 pitcher_xBB_test_data%>%
-  filter(pa >= 285)->pitchers_walk_plot_data1
+  filter(pa >= 250 & game_year == 2020)->pitchers_walk_plot_data1
 
-p4 <- ggplot(pitcher_xBB_test_data, aes(x=pitchers_xBB_rates, y=pitcher_BB_pct)) +
-  xlab("Estimated Walk Rates") +
-  ylab("Real Walk Rates") +
-  geom_point() +
-  geom_smooth() +
-  ggtitle("Linear Regression Model: Real vs Estimated Walk Rates (min PA = 285)")
-
-ggplotly(p4)
-
-# PA >= 380; Correlation = 0.940187;
-# Found the break point at PA >= 375
-# PA >= 375; Correlation = 0.9402657;
-# PA >= 350; Correlation = 0.9387499;
-# PA >= 300; Correlation = 0.935122;
-# PA >= 200; Correlation = 0.9261552; 
-# PA >= 50; Correlation = 0.8925276;
-# PA >= 1; Correlation = 0.8547234  
-cor.test(pitchers_walk_plot_data1$pitcher_BB_pct, pitchers_walk_plot_data1$pitchers_xBB_rates)
+cor.test(pitcher_xBB_test_data2$pitcher_BB_pct, pitcher_xBB_test_data2$pitchers_xBB_rates)
 cor.test(pitcher_xBB_test_data$pitcher_BB_pct, pitcher_xBB_test_data$pitchers_xBB_rates)
-
 ```
 
-```{r}
+Below is a plot displaying the Real Vs Estimated Pitcher strikeout rates from our model for 2020 pitchers with at least 250 TBF's.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+p4 <- ggplot(pitchers_walk_plot_data1, aes(x = pitchers_xBB_rates, y = pitcher_BB_pct)) + geom_point(aes(text=pitcher_name)) + 
+  labs(title = "2020 Real vs Estimated Pitcher Walk Rates (min TBF = 250)",
+       x = "Expected Walks",
+       y = "Actual Walks") + scale_color_manual(values = colors) + geom_abline()
+
+ggplotly(p4)
+```
+
+## Data Prep for Log 5 Simulation
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 qual_of_comp_data_all_pitchers%>%
   filter(events != "null")->matchup_data_17_to_20
 ```
 
-```{r}
+Here we select only the necessary variables for the Log5 simulation.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 test_data1%>%
   select(player_name, batter, game_year, est_batter_strikeout_rates)->batter_xK_data
 
@@ -727,11 +825,30 @@ pitchers_xSO_test_data%>%
 
 pitcher_xBB_test_data%>%
   select(pitcher_name, pitcher, game_year, pitchers_xBB_rates)->pitcher_xBB_data
-
 ```
 
+## Log 5 Simulation
 
-```{r}
+Finally, using this simplified Log 5 equation: <https://ieeexplore.ieee.org/document/7069266>
+
+The equation is as follows: E* = (BP)/L / (BP)/L + (1-B)(1-P)/(1-L)
+where we let B be a batter's strikeout percentage, P be a pitcher's strikeout percentage and L be the league average strikeout percentage. The log5 method then predicts the probability of E* being a strikeout for a matchup between a batter and a pitcher. This same model is used for walk probability.
+
+The league strikeout and walk rates are as follows:
+
+* 2017 Batter Strikeout Rate: .216
+* 2017 Pitcher Walk Rate: .08
+
+* 2018 Batter Strikeout Rate: .223
+* 2018 Pitcher Walk Rate: .085
+
+* 2019 Batter Strikeout Rate: .230
+* 2019 Pitcher Walk Rate: .085
+
+* 2020 Batter Strikeout Rate: .234
+* 2020 Pitcher Walk Rate: .092
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
 matchup_data_17_to_20%>%
   select(game_year, player_name, batter, pitcher_name, pitcher)%>%
   left_join(batter_xK_data, by = c("player_name", "batter", "game_year"))%>%
@@ -749,7 +866,6 @@ matchup_data_17_to_20%>%
            (1-est_batter_walk_rates)*(1-pitchers_xBB_rates)/(1-league_bb_pct))%>%
   mutate(final_adjusted_BB_rate = final_adjusted_BB_rate_num/final_adjusted_BB_rate_denom)->final_adjusted_data
 
-
 final_adjusted_data%>%
   select(game_year, player_name, batter, final_adjusted_K_rate, final_adjusted_BB_rate)%>%
   group_by(game_year, player_name, batter)%>%
@@ -762,9 +878,31 @@ final_adjusted_data%>%
 
 final_join <- left_join(batters_all_adjusted_K_rates, batters_all_adjusted_BB_rates, by = c("player_name", "batter", "game_year"))
 
-
 final_join <- na.omit(final_join)
+```
 
-final_join
+## Final Results
 
+Here are all adjusted batter strikeout and walk rates based on the caliber of pitchers they faced from (2017-2020) by season.
+
+```{r, eval = TRUE, echo = TRUE, warning = FALSE, error = FALSE, message = FALSE}
+final_join_with_real_rates <- left_join(final_join, test_data1, by = c("player_name", "batter", "game_year"))%>%
+  left_join(batter_walks_big_join, by = c("player_name", "batter", "game_year"))%>%
+  select(game_year, player_name, batter, batter_strikeout_pct, batter_walk_pct, Adjusted_SO_pct, Adjusted_BB_pct)
+
+p5 <- ggplot(final_join_with_real_rates, aes(x = Adjusted_SO_pct, y = batter_strikeout_pct)) + geom_point(aes(text=player_name)) + 
+  labs(title = "2020 Real vs Simulated Batter Strikeout Rates",
+       x = "Expected Strikeouts",
+       y = "Actual Strikeouts") + scale_color_manual(values = colors) + geom_abline()
+
+ggplotly(p5)
+
+p6 <- ggplot(final_join_with_real_rates, aes(x = Adjusted_BB_pct, y = batter_walk_pct)) + geom_point(aes(text=player_name)) + 
+  labs(title = "2020 Real vs Simulated Batter Walk Rates",
+       x = "Expected Walks",
+       y = "Actual Walks") + scale_color_manual(values = colors) + geom_abline()
+
+ggplotly(p6)
+
+kable(final_join_with_real_rates)
 ```
