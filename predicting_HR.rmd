@@ -1,5 +1,5 @@
 ---
-title: "Predicing the Top-10 HR Hitters of 2021"
+title: "Predicing the Top-10 HR Hitters for 2021"
 author: "Greg Ngim"
 date: "11/13/2020"
 output: html_document
