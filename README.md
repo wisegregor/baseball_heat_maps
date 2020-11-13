@@ -1,4 +1,4 @@
-# Data Science & Coding Examples
+# Data Visualization, Data Science & Coding Examples
 
 Shiny App displaying batter and pitcher heat maps: https://wisegregor.shinyapps.io/Heat_Maps_upload
 
