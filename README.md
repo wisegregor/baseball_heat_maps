@@ -1,6 +1,6 @@
 # Data Visualization, Data Science & Coding Examples
 
-Shiny App displaying batter and pitcher heat maps: https://wisegregor.shinyapps.io/Heat_Maps_upload
+Shiny App displaying batter and pitcher heat maps: https://wisegregor.shinyapps.io/Heat_Maps_Update
 
 Shiny App predicting the top-10 HR hitters for 2021: https://wisegregor.shinyapps.io/Predicting_HR_upload
 
